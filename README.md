@@ -8,7 +8,7 @@ The examples are intended to be useful as both **working plugins** and **recipes
 
 | Example | Description | Live |
 |---|---|---|
-| [OSM Place Picker](./example/osm-place-picker/) | Search OpenStreetMap, choose a place, then fine-tune its coordinates with a draggable Leaflet marker. | [Open](https://forresto.github.io/test-cuttle-plugins/example/osm-place-picker/) |
+| [OSM Place Picker](./coordinates-picker/) | Search OpenStreetMap, choose a place, then fine-tune its coordinates with a draggable Leaflet marker. | [Open](https://forresto.github.io/test-cuttle-plugins/coordinates-picker/) |
 
 ## Using this repository with ChatGPT
 
@@ -54,7 +54,7 @@ cuttle.setValueAndClose(value);
 
 ## Hosting
 
-The repository is published with GitHub Pages using the workflow in `.github/workflows/pages.yml`.
+The repository is published with GitHub Pages from the `main` branch root.
 
 Static plugin files can therefore be used directly as HTTPS Cuttle Input Plugin URLs.
 
@@ -64,10 +64,9 @@ Static plugin files can therefore be used directly as HTTPS Cuttle Input Plugin 
 /
 ├── README.md
 ├── LICENSE
-├── example/
-│   └── osm-place-picker/
-│       ├── index.html
-│       └── README.md
+├── coordinates-picker/
+│   ├── index.html
+│   └── README.md
 └── .github/
     └── workflows/
         └── pages.yml
