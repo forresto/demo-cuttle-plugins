@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Image to Palette</title>
+  <script src="https://cuttle.xyz/editor/customizer/v1.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; font-family: system-ui, sans-serif; font-size: 14px; }
+    body { padding: 16px; }
+    label { display: block; margin-bottom: 6px; font-weight: 600; }
+    input[type="file"], input[type="number"] { width: 100%; margin-bottom: 16px; }
+    input[type="number"] { padding: 6px; }
+    #image-container { display: none; margin-bottom: 16px; }
+    #image-preview { display: block; width: 100%; max-height: 240px; object-fit: contain; border: 1px solid #ddd; }
+    #palette { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-bottom: 16px; }
+    .swatch { aspect-ratio: 1; border: 1px solid rgba(0,0,0,.15); }
+    button { width: 100%; padding: 8px; cursor: pointer; }
+    footer { margin-top: 16px; padding-top: 12px; border-top: 1px solid #ddd; font-size: 11px; line-height: 1.4; color: #666; }
+    footer a { color: inherit; }
+    canvas { display: none; }
+  </style>
+</head>
+<body>
+  <label for="image">Image</label>
+  <input id="image" type="file" accept="image/*">
+
+  <label for="count">Number of colors</label>
+  <input id="count" type="number" min="1" max="24" value="6">
+
+  <div id="image-container">
+    <img id="image-preview" alt="Source image">
+  </div>
+
+  <div id="palette"></div>
+  <button id="save" type="button">Save</button>
+  <canvas id="canvas"></canvas>
+
+  <footer>
+    The implementation is largely based on
+    <a href="http://gfx.cs.princeton.edu/pubs/Chang_2015_PPR/chang2015-palette_small.pdf">
+      Palette-Based Photo Recoloring (Chang and al. 2015)
+    </a>,
+    section 3.2.
+    <br><br>
+    <a href="https://github.com/googleartsculture/art-palette/tree/master/palette-extraction">
+      https://github.com/googleartsculture/art-palette/tree/master/palette-extraction
+    </a>
+  </footer>
+
+  <script>
+    // Adapted from Google's Art Palette palette_extractor.min.js.
+    const arrayUtils = {
+      clone: d => d.length ? Array.from(d) : [],
+      repeat: (d, e) => Array(e).fill(d)
+    };
+
+    const vec3Utils = {
+      add: (d, e, f) => {
+        f[0] = d[0] + e[0]; f[1] = d[1] + e[1]; f[2] = d[2] + e[2]; return f;
+      },
+      scale: (d, e, f) => {
+        f[0] = d[0] * e; f[1] = d[1] * e; f[2] = d[2] * e; return f;
+      },
+      distanceSquared: (d, e) => {
+        const a = d[0] - e[0], b = d[1] - e[1], c = d[2] - e[2];
+        return a * a + b * b + c * c;
+      },
+      createFloat32FromArray: d => new Float32Array(d)
+    };
+
+    class PaletteExtractor {
+      constructor() {
+        this.labs_ = [];
+        this.weights_ = [];
+        this.seeds_ = [];
+        this.seedWeights_ = [];
+      }
+
+      processImageData(data, count = 5) {
+        this.computeHistogramFromImageData_(data);
+        this.selectSeeds_(count);
+        this.clusterColors_();
+        return this.exportPalette_();
+      }
+
+      computeHistogramFromImageData_(data) {
+        this.labs_ = [];
+        this.weights_ = arrayUtils.repeat(0, PaletteExtractor.HISTOGRAM_SIZE_);
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const lab = vec3Utils.createFloat32FromArray(this.rgbToLab(r, g, b));
+          const bin = 16 * (16 * Math.floor(r / 16) + Math.floor(g / 16)) + Math.floor(b / 16);
+          if (bin in this.labs_) vec3Utils.add(this.labs_[bin], lab, this.labs_[bin]);
+          else this.labs_[bin] = lab;
+          this.weights_[bin]++;
+        }
+      }
+
+      selectSeeds_(count) {
+        this.seeds_ = [];
+        const weights = arrayUtils.clone(this.weights_);
+        let index = 0;
+        for (let i = 0; i < count && (index = this.getHeaviestIndex_(weights), weights[index] !== 0); ++i) {
+          const seed = this.addSeedByIndex_(index);
+          weights[index] = 0;
+          this.attenuateWeightsAroundSeed_(weights, seed);
+        }
+      }
+
+      clusterColors_() {
+        if (!this.seeds_.length) throw Error("Please select seeds before clustering");
+        const assignments = arrayUtils.repeat(0, PaletteExtractor.HISTOGRAM_SIZE_);
+        let sums = [];
+        this.seedWeights_ = [];
+        let done = false;
+        while (!done) {
+          done = true;
+          sums = [];
+          this.seedWeights_ = arrayUtils.repeat(0, this.seeds_.length);
+          for (let i = 0; i < PaletteExtractor.HISTOGRAM_SIZE_; i++) {
+            if (this.weights_[i] !== 0) {
+              const closest = this.getClosestSeedIndex_(i);
+              if (done && closest !== assignments[i]) done = false;
+              assignments[i] = closest;
+              this.addColorToSeed_(sums, closest, i);
+            }
+          }
+          this.updateSeedsWithNewSeeds_(sums);
+        }
+      }
+
+      exportPalette_() {
+        if (!this.seeds_.length) throw Error("Please select seeds and get clusters before exporting a new palette");
+        return this.seeds_.map(seed => {
+          const rgb = this.labToRgb(seed[0], seed[1], seed[2]);
+          return this.rgbToHex(rgb[0], rgb[1], rgb[2]);
+        });
+      }
+
+      attenuateWeightsAroundSeed_(weights, seed) {
+        for (let i = 0; i < PaletteExtractor.HISTOGRAM_SIZE_; i++) {
+          if (this.weights_[i] > 0) {
+            const point = vec3Utils.createFloat32FromArray([0, 0, 0]);
+            vec3Utils.scale(this.labs_[i], 1 / this.weights_[i], point);
+            weights[i] *= 1 - Math.exp(-vec3Utils.distanceSquared(seed, point) / 3650);
+          }
+        }
+      }
+
+      addSeedByIndex_(index) {
+        const seed = vec3Utils.createFloat32FromArray([0, 0, 0]);
+        vec3Utils.scale(this.labs_[index], 1 / this.weights_[index], seed);
+        this.seeds_.push(seed);
+        return seed;
+      }
+
+      getHeaviestIndex_(weights) {
+        let max = 0, index = 0;
+        for (let i = 0; i < PaletteExtractor.HISTOGRAM_SIZE_; i++) {
+          if (weights[i] > max) { max = weights[i]; index = i; }
+        }
+        return index;
+      }
+
+      addColorToSeed_(sums, seedIndex, binIndex) {
+        if (!(seedIndex in sums)) sums[seedIndex] = vec3Utils.createFloat32FromArray([0, 0, 0]);
+        vec3Utils.add(sums[seedIndex], this.labs_[binIndex], sums[seedIndex]);
+        this.seedWeights_[seedIndex] += this.weights_[binIndex];
+      }
+
+      updateSeedsWithNewSeeds_(sums) {
+        for (let i = 0; i < this.seeds_.length; i++) {
+          if (!(i in sums)) sums[i] = vec3Utils.createFloat32FromArray([0, 0, 0]);
+          if (this.seedWeights_[i] === 0) sums[i] = vec3Utils.createFloat32FromArray([0, 0, 0]);
+          else vec3Utils.scale(sums[i], 1 / this.seedWeights_[i], sums[i]);
+          this.seeds_[i] = new Float32Array(sums[i]);
+        }
+      }
+
+      getClosestSeedIndex_(binIndex) {
+        const point = new Float32Array(this.labs_[binIndex]);
+        vec3Utils.scale(point, 1 / this.weights_[binIndex], point);
+        let closest = Number.MAX_SAFE_INTEGER, index = 0;
+        for (let i = 0; i < this.seeds_.length; i++) {
+          const distance = vec3Utils.distanceSquared(this.seeds_[i], point);
+          if (distance < closest) { closest = distance; index = i; }
+        }
+        return index;
+      }
+
+      componentToHex(value) {
+        const hex = value.toString(16);
+        return hex.length === 1 ? "0" + hex : hex;
+      }
+
+      rgbToHex(r, g, b) {
+        r = +r; g = +g; b = +b;
+        if (r !== (255 & r) || g !== (255 & g) || b !== (255 & b)) {
+          throw Error("Invalid RGB color");
+        }
+        return "#" + this.componentToHex(r) + this.componentToHex(g) + this.componentToHex(b);
+      }
+
+      rgbToLab(r, g, b) {
+        return this.xyzToLab(...this.rgbToXyz(r / 255, g / 255, b / 255));
+      }
+
+      labToRgb(l, a, b) {
+        const xyz = this.labToXyz(l, a, b);
+        const rgb = this.xyzToRgb(...xyz);
+        return rgb.map(v => Math.min(255, Math.max(0, Math.round(255 * v))));
+      }
+
+      xyzToRgb(x, y, z) {
+        x /= 100; y /= 100; z /= 100;
+        let r = 3.2406 * x - 1.5372 * y - 0.4986 * z;
+        let g = -0.9689 * x + 1.8758 * y + 0.0415 * z;
+        let b = 0.0557 * x - 0.204 * y + 1.057 * z;
+        r = 0.0031308 < r ? 1.055 * Math.pow(r, 1 / 2.4) - 0.055 : 12.92 * r;
+        g = 0.0031308 < g ? 1.055 * Math.pow(g, 1 / 2.4) - 0.055 : 12.92 * g;
+        b = 0.0031308 < b ? 1.055 * Math.pow(b, 1 / 2.4) - 0.055 : 12.92 * b;
+        return [r, g, b];
+      }
+
+      labToXyz(l, a, b) {
+        const f = (l + 16) / 116;
+        return [
+          PaletteExtractor.REF_X * Math.pow(f + a / 500, 3),
+          PaletteExtractor.REF_Y * Math.pow(f, 3),
+          PaletteExtractor.REF_Z * Math.pow(f - b / 200, 3)
+        ];
+      }
+
+      xyzToLab(x, y, z) {
+        const xr = x / PaletteExtractor.REF_X, yr = y / PaletteExtractor.REF_Y, zr = z / PaletteExtractor.REF_Z;
+        return [
+          0.008856 < yr ? 116 * Math.pow(yr, 1 / 3) - 16 : 903.3 * yr,
+          500 * (this.transformation(xr) - this.transformation(yr)),
+          200 * (this.transformation(yr) - this.transformation(zr))
+        ];
+      }
+
+      rgbToXyz(r, g, b) {
+        r = 0.04045 < r ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+        g = 0.04045 < g ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+        b = 0.04045 < b ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+        r *= 100; g *= 100; b *= 100;
+        return [
+          0.4124 * r + 0.3576 * g + 0.1805 * b,
+          0.2126 * r + 0.7152 * g + 0.0722 * b,
+          0.0193 * r + 0.1192 * g + 0.9505 * b
+        ];
+      }
+
+      transformation(value) {
+        return 0.008856 < value ? Math.pow(value, 1 / 3) : 7.787 * value + 16 / 116;
+      }
+    }
+
+    PaletteExtractor.HISTOGRAM_SIZE_ = 4096;
+    PaletteExtractor.REF_X = 95.047;
+    PaletteExtractor.REF_Y = 100;
+    PaletteExtractor.REF_Z = 108.883;
+
+    const imageInput = document.getElementById("image");
+    const countInput = document.getElementById("count");
+    const imageContainer = document.getElementById("image-container");
+    const imagePreview = document.getElementById("image-preview");
+    const paletteElement = document.getElementById("palette");
+    const canvas = document.getElementById("canvas");
+    const saveButton = document.getElementById("save");
+
+    const paletteExtractor = new PaletteExtractor();
+    let colors = [];
+    let imageData = null;
+    let inputFileReader = null;
+
+    function makePreviewImage(palette) {
+      const size = 64;
+      const width = size * palette.length;
+      const rects = palette.map((color, i) =>
+        '<rect x="' + (i * size) + '" y="0" width="' + size + '" height="' + size + '" fill="' + color + '"/>'
+      ).join("");
+      const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + size +
+        '" viewBox="0 0 ' + width + ' ' + size + '">' + rects + '</svg>';
+      return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    }
+
+    function renderPalette() {
+      paletteElement.innerHTML = "";
+      for (const color of colors) {
+        const swatch = document.createElement("div");
+        swatch.className = "swatch";
+        swatch.style.backgroundColor = color;
+        swatch.title = color;
+        paletteElement.appendChild(swatch);
+      }
+      paletteElement.style.gridTemplateColumns = "repeat(" + Math.min(colors.length, 6) + ", 1fr)";
+    }
+
+    function extractPalette() {
+      if (!imageData) return;
+      const count = Math.max(1, Math.min(24, Number(countInput.value) || 6));
+      countInput.value = count;
+      colors = paletteExtractor.processImageData(imageData.data, count);
+      renderPalette();
+    }
+
+    function loadImage(file) {
+      if (inputFileReader) inputFileReader.abort();
+      inputFileReader = new FileReader();
+      inputFileReader.onload = event => {
+        const image = new Image();
+        image.onload = () => {
+          if (image.naturalWidth < 1 || image.naturalHeight < 1) return;
+          const scale = Math.min(1, 400 / image.naturalWidth);
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+          const context = canvas.getContext("2d", { willReadFrequently: true });
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+          imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          imagePreview.src = event.target.result;
+          imageContainer.style.display = "block";
+          extractPalette();
+        };
+        image.src = event.target.result;
+      };
+      inputFileReader.readAsDataURL(file);
+    }
+
+    imageInput.addEventListener("change", event => {
+      const file = event.target.files[0];
+      if (file) loadImage(file);
+      imageInput.value = "";
+    });
+
+    countInput.addEventListener("change", extractPalette);
+
+    saveButton.addEventListener("click", () => {
+      if (!colors.length) return;
+      const value = {
+        count: colors.length,
+        colors,
+        _previewImage: makePreviewImage(colors)
+      };
+      cuttle.setValueAndClose(value);
+      imageData = null;
+      if (inputFileReader) inputFileReader.abort();
+      inputFileReader = null;
+      imagePreview.removeAttribute("src");
+    });
+
+    cuttle.ready(value => {
+      if (!value) return;
+      if (value.count) countInput.value = value.count;
+      if (Array.isArray(value.colors)) {
+        colors = value.colors;
+        renderPalette();
+      }
+    });
+  </script>
+</body>
+</html>
