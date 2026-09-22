@@ -10,32 +10,6 @@ The examples are intended to be useful as both **working plugins** and **recipes
 |---|---|---|
 | [OSM Place Picker](./coordinates-picker/) | Search OpenStreetMap, choose a place, then fine-tune its coordinates with a draggable Leaflet marker. | [Open](https://forresto.github.io/test-cuttle-plugins/coordinates-picker/) |
 
-## Using this repository with ChatGPT
-
-Give an AI assistant this repository URL:
-
-https://github.com/forresto/test-cuttle-plugins
-
-Then describe the Cuttle parameter and UI you want.
-
-A useful workflow is:
-
-1. Inspect the closest example.
-2. Preserve the Cuttle Customizer SDK protocol.
-3. Adapt the value schema to the requested parameter.
-4. Keep the plugin self-contained in one HTML file unless there is a good reason not to.
-5. Add a self-documenting README beside the example.
-6. Publish it through GitHub Pages.
-7. Return the live HTTPS URL.
-
-Each example should document:
-- its live URL
-- its source file
-- the value written to Cuttle
-- how the UI behaves
-- external dependencies
-- important implementation decisions
-
 ## Plugin SDK
 
 Plugins use the Cuttle Customizer Plugin SDK:
@@ -77,3 +51,29 @@ Static plugin files can therefore be used directly as HTTPS Cuttle Input Plugin 
 │   ├── index.html
 │   └── README.md
 ```
+
+## Using this repository with AI
+
+Give a coding agent or AI assistant this repository URL:
+
+https://github.com/forresto/test-cuttle-plugins
+
+Then describe the Cuttle parameter and UI you want.
+
+A useful workflow is:
+
+1. Inspect the closest example.
+2. Preserve the Cuttle Customizer SDK protocol.
+3. Adapt the value schema to the requested parameter.
+4. Keep the plugin self-contained in one HTML file unless there is a good reason not to.
+5. Add a self-documenting README beside the example.
+6. Publish it through GitHub Pages.
+7. Return the live HTTPS URL.
+
+Each example should document:
+- its live URL
+- its source file
+- the value written to Cuttle
+- how the UI behaves
+- external dependencies
+- important implementation decisions
