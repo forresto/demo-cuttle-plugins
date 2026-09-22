@@ -11,6 +11,7 @@ The examples are intended to be useful as both **working plugins** and **recipes
 | Example | Description | Live |
 |---|---|---|
 | [OSM Place Picker](./coordinates-picker/) | Search OpenStreetMap, choose a place, then fine-tune its coordinates with a draggable Leaflet marker. | [Open](https://cuttlexyz.github.io/demo-cuttle-plugins/coordinates-picker/) |
+| [Image to Palette](./image-to-palette/) | Choose an image and extract a palette of colors for use as a Cuttle parameter. | [Open](https://cuttlexyz.github.io/demo-cuttle-plugins/image-to-palette/) |
 
 ## Plugin SDK
 
@@ -54,13 +55,16 @@ Static plugin files can therefore be used directly as HTTPS Cuttle Input Plugin 
 ├── coordinates-picker/
 │   ├── index.html
 │   └── README.md
+├── image-to-palette/
+│   ├── index.html
+│   └── README.md
 ```
 
 ## Using this repository with AI
 
 Give a coding agent or AI assistant this repository URL:
 
-https://github.com/cuttlexyz/demo-cuttle-plugins
+https://github.com/forresto/demo-cuttle-plugins
 
 Then describe the Cuttle parameter and UI you want.
 
