@@ -8,13 +8,15 @@ The examples are intended to be useful as both **working plugins** and **recipes
 
 | Example | Description | Live |
 |---|---|---|
-| [OSM Place Picker](./coordinates-picker/) | Search OpenStreetMap, choose a place, then fine-tune its coordinates with a draggable Leaflet marker. | [Open](https://forresto.github.io/test-cuttle-plugins/coordinates-picker/) |
+| [OSM Place Picker](./coordinates-picker/) | Search OpenStreetMap, choose a place, then fine-tune its coordinates with a draggable Leaflet marker. | [Open](https://cuttlexyz.github.io/demo-cuttle-plugins/coordinates-picker/) |
 
 ## Plugin SDK
 
 Plugins use the Cuttle Customizer Plugin SDK:
 
-`https://cuttle.xyz/editor/customizer/v1.js`
+```html
+<script src="https://cuttle.xyz/editor/customizer/v1.js"></script>
+```
 
 The basic lifecycle is:
 
@@ -56,7 +58,7 @@ Static plugin files can therefore be used directly as HTTPS Cuttle Input Plugin 
 
 Give a coding agent or AI assistant this repository URL:
 
-https://github.com/forresto/test-cuttle-plugins
+https://github.com/cuttlexyz/demo-cuttle-plugins
 
 Then describe the Cuttle parameter and UI you want.
 
