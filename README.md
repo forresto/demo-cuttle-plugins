@@ -1,3 +1,5 @@
+> ⚠️ pre-release preview, won't work quite yet 😉
+
 # Cuttle Customizer Plugin Examples
 
 Small, self-contained examples of HTML Input Plugins for [Cuttle](https://cuttle.xyz/).
