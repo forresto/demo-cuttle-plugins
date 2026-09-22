@@ -54,7 +54,7 @@ cuttle.setValueAndClose(value);
 
 ## Hosting
 
-The repository is published with GitHub Pages from the `main` branch root.
+The repository is published with [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site) from the `main` branch root.
 
 Static plugin files can therefore be used directly as HTTPS Cuttle Input Plugin URLs.
 
@@ -67,7 +67,4 @@ Static plugin files can therefore be used directly as HTTPS Cuttle Input Plugin 
 ├── coordinates-picker/
 │   ├── index.html
 │   └── README.md
-└── .github/
-    └── workflows/
-        └── pages.yml
 ```
