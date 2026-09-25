@@ -1,0 +1,1404 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Map Picker</title>
+
+    <script src="https://cuttle.xyz/editor/customizer/v1.js"></script>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+      /* Cuttle plugin design system (2026-09-25), only the parts this plugin uses. */
+      :root {
+        --bg: #fafafa;
+        --panel: #f3f3f3;
+        --field: #e6e6e6;
+        --field-h: #dedede;
+        --ink: rgba(0, 0, 0, 0.85);
+        --ink2: rgba(0, 0, 0, 0.5);
+        --line: rgba(0, 0, 0, 0.1);
+        --blue: hsl(200, 100%, 50%);
+        --blue-h: hsl(200, 100%, 58%);
+        --error: hsl(0, 70%, 92%);
+        --error-ink: hsl(12, 68%, 40%);
+        --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 12px;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          14px/1.4 system-ui,
+          -apple-system,
+          sans-serif;
+      }
+
+      .layout {
+        display: grid;
+        gap: 12px;
+        align-items: start;
+      }
+      .preview {
+        position: relative;
+        display: grid;
+        place-items: center;
+        aspect-ratio: 4/3;
+        min-height: 200px;
+        max-height: calc(100vh - 24px);
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow:
+          0 0 0 1px var(--line),
+          0 4px 16px rgba(0, 0, 0, 0.08);
+        background: #fff;
+      }
+      .empty {
+        color: var(--ink2);
+        text-align: center;
+        padding: 24px;
+      }
+
+      /* Media queries sit after .preview so sticky beats position: relative. */
+      @media (min-width: 640px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+        /* Full height beside the controls, so the map shows context around the design. */
+        .preview {
+          position: sticky;
+          top: 12px;
+          aspect-ratio: auto;
+          height: calc(100vh - 24px);
+        }
+      }
+      @media (min-width: 1000px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr) 420px;
+        }
+      }
+
+      form {
+        display: grid;
+        gap: 12px;
+      }
+      .panel {
+        display: grid;
+        gap: 8px;
+        background: var(--panel);
+        border-radius: 10px;
+        padding: 12px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: minmax(72px, 2fr) 3fr;
+        gap: 8px;
+        align-items: center;
+      }
+      .pair {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        min-width: 0;
+      }
+      .pair select,
+      .pair button {
+        flex: none;
+        width: auto;
+      }
+      h3 {
+        margin: 4px 0 0;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink2);
+      }
+      small {
+        font-size: 12px;
+        color: var(--ink2);
+      }
+
+      input,
+      select,
+      button {
+        font: inherit;
+        color: inherit;
+        border: 0;
+        border-radius: 6px;
+        background: var(--field);
+        padding: 4px 8px;
+        width: 100%;
+        min-width: 0;
+        min-height: 28px;
+      }
+      input:hover,
+      select:hover,
+      button:not(:disabled):hover {
+        background: var(--field-h);
+      }
+      input[type="number"] {
+        font-family: var(--mono);
+        text-align: center;
+      }
+      :focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 1px;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+
+      .primary {
+        background: var(--blue);
+        color: #fff;
+        font-weight: 600;
+        padding: 10px 16px;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0, 120, 200, 0.3);
+      }
+      .primary:hover:not(:disabled) {
+        background: var(--blue-h);
+      }
+
+      .seg {
+        display: flex;
+        padding: 2px;
+        gap: 2px;
+        background: var(--field);
+        border-radius: 6px;
+      }
+      .seg label {
+        position: relative;
+        flex: 1;
+        text-align: center;
+        padding: 2px 6px;
+        border-radius: 4px;
+        cursor: pointer;
+        color: var(--ink2);
+      }
+      .seg input {
+        position: absolute;
+        inset: 0;
+        width: 1px;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .seg label:has(:checked) {
+        background: #fff;
+        color: var(--ink);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+      }
+      .seg label:has(:focus-visible) {
+        outline: 2px solid var(--blue);
+      }
+
+      .note {
+        margin: 0;
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: #fff;
+        box-shadow: inset 0 0 0 1px var(--line);
+        font-size: 13px;
+      }
+      .note.error {
+        background: var(--error);
+        color: var(--error-ink);
+      }
+
+      /* Plugin-specific additions. */
+      #map {
+        display: none;
+        position: absolute;
+        inset: 0;
+        isolation: isolate;
+      }
+      /* The design area, inset in the map. Lives inside the map container, above the
+         tile and overlay panes but below Leaflet's controls; the shadow dims the context. */
+      #frame {
+        position: absolute;
+        z-index: 700;
+        pointer-events: none;
+        box-shadow:
+          0 0 0 1px rgba(0, 0, 0, 0.3),
+          0 0 0 100vmax rgba(250, 250, 250, 0.45);
+      }
+      /* The generated SVG sits on a white wash so the vectors read over the tiles. */
+      .leaflet-image-layer.vectors {
+        background: rgba(255, 255, 255, 0.85);
+      }
+      #status:empty,
+      #searchStatus:empty,
+      #results:empty {
+        display: none;
+      }
+      #results {
+        display: grid;
+        gap: 4px;
+      }
+      #results button {
+        text-align: left;
+      }
+      .times {
+        flex: none;
+        color: var(--ink2);
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 12px;
+      }
+      .legend span::before {
+        content: "";
+        display: inline-block;
+        width: 10px;
+        height: 2px;
+        margin-right: 5px;
+        vertical-align: middle;
+        background: var(--color);
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="layout">
+      <div id="preview" class="preview">
+        <div id="map" aria-label="Map"></div>
+        <p id="empty" class="empty">Search for a place to show the map.</p>
+      </div>
+
+      <!-- autocomplete off so a reload does not restore stale control state. -->
+      <form id="form" novalidate autocomplete="off">
+        <div class="panel">
+          <h3>Location</h3>
+
+          <div class="row">
+            <label for="query">Place</label>
+            <span class="pair">
+              <input
+                id="query"
+                name="query"
+                type="text"
+                placeholder="Address, city, or ZIP..."
+                autocomplete="off"
+              />
+              <button id="search" type="button">Search</button>
+            </span>
+          </div>
+
+          <p id="searchStatus" class="note" aria-live="polite"></p>
+          <div id="results"></div>
+
+          <label class="row"
+            >Area width
+            <span class="pair">
+              <input id="area" name="area" type="number" value="2" min="0" step="any" />
+              <select id="areaUnit" name="areaUnit" aria-label="Area unit">
+                <option selected>mi</option>
+                <option>km</option>
+              </select>
+            </span>
+          </label>
+          <small>Pan and scroll the map to frame the area.</small>
+        </div>
+
+        <div class="panel">
+          <h3>Design</h3>
+
+          <div class="row">
+            <span>Aspect ratio</span>
+            <span class="pair">
+              <input
+                id="width"
+                name="width"
+                type="number"
+                value="4"
+                min="0"
+                step="any"
+                aria-label="Aspect width"
+              />
+              <span class="times">:</span>
+              <input
+                id="height"
+                name="height"
+                type="number"
+                value="3"
+                min="0"
+                step="any"
+                aria-label="Aspect height"
+              />
+            </span>
+          </div>
+
+          <div class="row">
+            <span>Detail</span>
+            <span class="seg">
+              <label><input type="radio" name="detail" value="light" checked />Light</label>
+              <label><input type="radio" name="detail" value="medium" />Medium</label>
+              <label><input type="radio" name="detail" value="high" />High</label>
+            </span>
+          </div>
+
+          <small class="legend">
+            <span style="--color: #ff0000">Cut</span>
+            <span style="--color: #0000ff">Score</span>
+            <span style="--color: #000000">Engrave</span>
+          </small>
+
+          <p id="status" class="note" aria-live="polite"></p>
+        </div>
+
+        <button id="save" type="submit" class="primary" disabled>Save</button>
+
+        <small>Map data © OpenStreetMap contributors, ODbL · Leaflet</small>
+      </form>
+    </div>
+
+    <script>
+      "use strict";
+
+      const $ = (id) => document.getElementById(id);
+
+      // The template decides the output size; geometry is simplified as if the
+      // longer side were this many millimeters, and the SVG is in those units.
+      const NOMINAL_SIZE_MM = 180;
+      const KM_PER_MILE = 1.609344;
+      const EARTH_CIRCUMFERENCE_KM = 40075.016686;
+
+      let map = null;
+      let overlay = null;
+
+      // The chosen place; its center moves as the map is panned.
+      let placeName = "";
+
+      // The SVG data URL of the most recent render, or null while rendering.
+      let svgUrl = null;
+
+      // Bumped on every change so stale renders are dropped.
+      let generation = 0;
+      let renderTimer = null;
+
+      const kmPerAreaUnit = () => ($("areaUnit").value === "mi" ? KM_PER_MILE : 1);
+
+      function setStatus(message, error = false, id = "status") {
+        $(id).textContent = message;
+        $(id).classList.toggle("error", error);
+      }
+
+      const setSearchStatus = (message, error = false) => setStatus(message, error, "searchStatus");
+
+      /*
+       * Nominal design size from the aspect ratio, or null if the fields are invalid.
+       */
+      function readSize() {
+        const aspect = Number($("width").value) / Number($("height").value);
+        if (!(aspect >= 0.1 && aspect <= 10)) return null;
+        return aspect >= 1
+          ? { width: NOMINAL_SIZE_MM, height: NOMINAL_SIZE_MM / aspect }
+          : { width: NOMINAL_SIZE_MM * aspect, height: NOMINAL_SIZE_MM };
+      }
+
+      /*
+       * The design area is inset in the map, fit to the design's aspect ratio.
+       */
+      const FRAME_INSET = 24;
+      let frameAspect = 4 / 3;
+
+      function frameSize() {
+        const width = $("preview").clientWidth - 2 * FRAME_INSET;
+        const height = $("preview").clientHeight - 2 * FRAME_INSET;
+        return width / height > frameAspect
+          ? { width: height * frameAspect, height }
+          : { width, height: width / frameAspect };
+      }
+
+      function updateFrame() {
+        const size = readSize();
+        if (size) frameAspect = size.width / size.height;
+        if (!map) return;
+        const frame = frameSize();
+        Object.assign($("frame").style, {
+          left: `${($("preview").clientWidth - frame.width) / 2}px`,
+          top: `${($("preview").clientHeight - frame.height) / 2}px`,
+          width: `${frame.width}px`,
+          height: `${frame.height}px`,
+        });
+      }
+
+      /*
+       * Create the Leaflet map on first use.
+       */
+      function ensureMap() {
+        if (map) return;
+
+        $("map").style.display = "block";
+        $("empty").hidden = true;
+
+        // Fractional zoom so the area width can be any value.
+        map = L.map("map", { zoomSnap: 0, zoomDelta: 0.5, wheelPxPerZoomLevel: 120 });
+
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: "&copy; OpenStreetMap contributors",
+        }).addTo(map);
+
+        // Show the fast raster map while moving; render vectors once it settles.
+        map.on("movestart", clearVectors);
+        map.on("moveend", () => {
+          updateAreaField();
+          scheduleRender();
+        });
+
+        const frame = document.createElement("div");
+        frame.id = "frame";
+        map.getContainer().append(frame);
+
+        new ResizeObserver(() => {
+          map.invalidateSize({ animate: false });
+          keepArea();
+        }).observe($("preview"));
+      }
+
+      function zoomForArea(areaKm, lat) {
+        const worldKm = EARTH_CIRCUMFERENCE_KM * Math.cos((lat * Math.PI) / 180);
+        return Math.log2((frameSize().width * worldKm) / (areaKm * 256));
+      }
+
+      /*
+       * Refit the frame, zooming so it still spans the area width in the field.
+       */
+      function keepArea() {
+        updateFrame();
+        const areaKm = Number($("area").value) * kmPerAreaUnit();
+        if (!map || !(areaKm > 0)) return;
+        map.setZoom(zoomForArea(areaKm, map.getCenter().lat), { animate: false });
+      }
+
+      function showLocation(lat, lon, areaKm) {
+        ensureMap();
+        map.invalidateSize();
+        updateFrame();
+        map.setView([lat, lon], zoomForArea(areaKm, lat), { animate: false });
+      }
+
+      /*
+       * The framed region, in normalized Web Mercator world coordinates (0-1).
+       */
+      function currentView() {
+        const frame = frameSize();
+        const zoom = map.getZoom();
+        const worldPx = 256 * 2 ** zoom;
+        const center = map.getCenter();
+        const centerPx = map.project(center, zoom);
+        const worldWidth = frame.width / worldPx;
+        const worldHeight = frame.height / worldPx;
+        const kmPerWorld = EARTH_CIRCUMFERENCE_KM * Math.cos((center.lat * Math.PI) / 180);
+        return {
+          lat: center.lat,
+          lon: center.lng,
+          cx: centerPx.x / worldPx,
+          cy: centerPx.y / worldPx,
+          worldWidth,
+          worldHeight,
+          widthKm: worldWidth * kmPerWorld,
+          heightKm: worldHeight * kmPerWorld,
+        };
+      }
+
+      function updateAreaField() {
+        if (!map || document.activeElement === $("area")) return;
+        $("area").value = formatNumber(currentView().widthKm / kmPerAreaUnit());
+      }
+
+      function clearVectors() {
+        generation++;
+        clearTimeout(renderTimer);
+        if (overlay) overlay.remove();
+        overlay = null;
+        svgUrl = null;
+        $("save").disabled = true;
+      }
+
+      function scheduleRender() {
+        clearVectors();
+        if (!map) return;
+        renderTimer = setTimeout(renderVectors, 300);
+      }
+
+      /*
+       * Fetch vector tiles for the framed region, simplify them to laser-ready
+       * paths, and lay the resulting SVG over the map in place.
+       */
+      async function renderVectors() {
+        const run = ++generation;
+        const size = readSize();
+        if (!size) {
+          setStatus("Aspect ratio must be between 1:10 and 10:1.", true);
+          return;
+        }
+        const view = currentView();
+        const plan = planTiles(view, Math.max(view.widthKm, view.heightKm));
+        if (!plan) {
+          setStatus("Zoom in to render the map. The area is too large for vector detail.");
+          return;
+        }
+
+        const detail = $("form").elements.detail.value;
+
+        setStatus("Loading map data...");
+        try {
+          const data = await fetchMapData(plan, () => run !== generation);
+          if (run !== generation) return;
+
+          const geometry = buildGeometry(data, view, size, detail);
+          const svg = renderSvg(geometry, size);
+          svgUrl = "data:image/svg+xml," + encodeURIComponent(svg);
+
+          const bounds = L.latLngBounds(
+            worldToLatLng(view.cx - view.worldWidth / 2, view.cy + view.worldHeight / 2),
+            worldToLatLng(view.cx + view.worldWidth / 2, view.cy - view.worldHeight / 2),
+          );
+          overlay = L.imageOverlay(svgUrl, bounds, { className: "vectors" }).addTo(map);
+          $("save").disabled = false;
+
+          setStatus(
+            `${geometry.majorRoads.length} major roads, ${geometry.minorRoads.length} local roads, ` +
+              `${geometry.waterLines.length} water edges, ${geometry.buildings.length} buildings ` +
+              `(${Math.round(svg.length / 1024)} KB).` +
+              (geometry.limited ? " Dense geometry was thinned to stay laser-friendly." : "") +
+              (data.buildingsOmitted ? " Zoom in to include buildings." : ""),
+          );
+        } catch (error) {
+          if (run !== generation) return;
+          console.error(error);
+          setStatus(error.message || "Map data failed to load.", true);
+        }
+      }
+
+      function worldToLatLng(x, y) {
+        return L.latLng(
+          (Math.atan(Math.sinh(Math.PI * (1 - 2 * y))) * 180) / Math.PI,
+          x * 360 - 180,
+        );
+      }
+
+      /*
+       * Search OpenStreetMap / Nominatim.
+       */
+      async function searchPlaces() {
+        const query = $("query").value.trim();
+        if (!query) return;
+
+        $("search").disabled = true;
+        setSearchStatus("Searching...");
+        $("results").replaceChildren();
+
+        try {
+          const url =
+            "https://nominatim.openstreetmap.org/search?" +
+            new URLSearchParams({ q: query, format: "jsonv2", limit: "5", addressdetails: "1" });
+
+          const response = await fetch(url);
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          const places = await response.json();
+          if (!places.length) {
+            setSearchStatus("No places found.");
+            return;
+          }
+
+          setSearchStatus(`${places.length} result${places.length === 1 ? "" : "s"}:`);
+
+          for (const place of places) {
+            const button = document.createElement("button");
+            // Inside the form, so it must not submit.
+            button.type = "button";
+            button.textContent = place.display_name;
+            button.onclick = () => {
+              placeName = place.display_name;
+              $("results").replaceChildren();
+              setSearchStatus("");
+              $("query").focus();
+              const areaKm = Number($("area").value) * kmPerAreaUnit() || 3;
+              showLocation(Number(place.lat), Number(place.lon), areaKm);
+            };
+            $("results").appendChild(button);
+          }
+        } catch (error) {
+          console.error(error);
+          setSearchStatus("Search failed. Please try again.", true);
+        } finally {
+          $("search").disabled = false;
+        }
+      }
+
+      /*
+       * Vector tiles, decoded and kept in a small LRU cache so parameter
+       * changes re-render without refetching.
+       */
+      const TILE_CACHE_SIZE = 100;
+      const tileCache = new Map();
+
+      // Be gentle with the OpenStreetMap tile service: few tiles per render,
+      // few requests at a time, and nothing new once a render is stale.
+      const MAX_TILES = 24;
+      const MAX_CONCURRENT_TILES = 4;
+
+      function cachedTile(key) {
+        const tile = tileCache.get(key);
+        if (tile) {
+          tileCache.delete(key);
+          tileCache.set(key, tile);
+        }
+        return tile;
+      }
+
+      async function fetchTile(zoom, x, y) {
+        const n = 2 ** zoom;
+        const wrappedX = ((x % n) + n) % n;
+        const url = `https://vector.openstreetmap.org/shortbread_v1/${zoom}/${wrappedX}/${y}.mvt`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`Map tile request failed (${response.status})`);
+        const elements = decodeVectorTile(
+          new Uint8Array(await response.arrayBuffer()),
+          { x, y },
+          zoom,
+          zoom === 14,
+        );
+        tileCache.set(`${zoom}/${x}/${y}`, elements);
+        while (tileCache.size > TILE_CACHE_SIZE) {
+          tileCache.delete(tileCache.keys().next().value);
+        }
+        return elements;
+      }
+
+      /*
+       * Pick the most detailed tile zoom whose tiles cover the view within
+       * MAX_TILES, or null if even the coarsest zoom needs more.
+       */
+      function planTiles(view, areaKm) {
+        const preferred = areaKm <= 6 ? 14 : areaKm > 40 ? 11 : areaKm > 12 ? 12 : 13;
+        for (let zoom = preferred; zoom >= 11; zoom--) {
+          const n = 2 ** zoom;
+          const minX = Math.floor((view.cx - view.worldWidth / 2) * n);
+          const maxX = Math.floor((view.cx + view.worldWidth / 2) * n);
+          const minY = Math.max(0, Math.floor((view.cy - view.worldHeight / 2) * n));
+          const maxY = Math.min(n - 1, Math.floor((view.cy + view.worldHeight / 2) * n));
+          if ((maxX - minX + 1) * (maxY - minY + 1) > MAX_TILES) continue;
+          const tiles = [];
+          for (let y = minY; y <= maxY; y++) {
+            for (let x = minX; x <= maxX; x++) tiles.push({ x, y });
+          }
+          return { zoom, tiles };
+        }
+        return null;
+      }
+
+      async function fetchMapData(plan, isStale) {
+        const { zoom, tiles } = plan;
+        const results = tiles.map(({ x, y }) => cachedTile(`${zoom}/${x}/${y}`));
+        const missing = tiles.filter((tile, index) => !results[index]);
+        let next = 0;
+        let loaded = tiles.length - missing.length;
+        let failed = false;
+
+        async function worker() {
+          while (next < missing.length && !failed && !isStale()) {
+            const tile = missing[next++];
+            try {
+              results[tiles.indexOf(tile)] = await fetchTile(zoom, tile.x, tile.y);
+            } catch (error) {
+              failed = true;
+              throw error;
+            }
+            loaded++;
+            if (!isStale()) setStatus(`Loading map data (${loaded} of ${tiles.length})...`);
+          }
+        }
+
+        await Promise.all(
+          Array.from({ length: Math.min(MAX_CONCURRENT_TILES, missing.length) }, worker),
+        );
+        return { elements: results.flat(), buildingsOmitted: zoom !== 14 };
+      }
+
+      /*
+       * Decode a Mapbox Vector Tile into streets, water edges, and buildings,
+       * with points in normalized world coordinates.
+       */
+      function decodeVectorTile(bytes, tile, zoom, includeBuildings) {
+        const reader = new ProtoReader(bytes);
+        const layers = [];
+        while (!reader.done()) {
+          const tag = reader.varint();
+          const field = Math.floor(tag / 8);
+          const wire = tag % 8;
+          if (field === 3) layers.push(parseVectorLayer(reader.bytesValue()));
+          else reader.skip(wire);
+        }
+        const n = 2 ** zoom;
+        const elements = [];
+        for (const layer of layers) {
+          const isWater = layer.name === "ocean" || layer.name === "water_polygons";
+          if (
+            layer.name !== "streets" &&
+            !isWater &&
+            !(includeBuildings && layer.name === "buildings")
+          )
+            continue;
+          const toWorld = ([x, y]) => [
+            (tile.x + x / layer.extent) / n,
+            (tile.y + y / layer.extent) / n,
+          ];
+          for (const feature of layer.features) {
+            for (const path of decodeMvtGeometry(feature.geometry)) {
+              if (path.length < 2) continue;
+              if (isWater && feature.type === 3) {
+                for (const edge of waterEdgesWithoutTileBorders(path, layer.extent)) {
+                  elements.push({ kind: "water", points: edge.map(toWorld) });
+                }
+              } else if (layer.name === "streets" && feature.type === 2) {
+                elements.push({
+                  kind: "street",
+                  highway: feature.properties.kind || "residential",
+                  points: path.map(toWorld),
+                });
+              } else if (layer.name === "buildings" && feature.type === 3) {
+                elements.push({ kind: "building", points: path.map(toWorld) });
+              }
+            }
+          }
+        }
+        return elements;
+      }
+
+      function waterEdgesWithoutTileBorders(path, extent) {
+        const isTileBorder = (start, end) =>
+          (start[0] <= 0 && end[0] <= 0) ||
+          (start[0] >= extent && end[0] >= extent) ||
+          (start[1] <= 0 && end[1] <= 0) ||
+          (start[1] >= extent && end[1] >= extent);
+        const edges = [];
+        let current = [];
+        for (let index = 0; index < path.length - 1; index++) {
+          const start = path[index];
+          const end = path[index + 1];
+          if (isTileBorder(start, end)) {
+            if (current.length > 1) edges.push(current);
+            current = [];
+            continue;
+          }
+          if (!current.length) current = [start, end];
+          else current.push(end);
+        }
+        if (current.length > 1) edges.push(current);
+        return edges;
+      }
+
+      class ProtoReader {
+        constructor(bytes) {
+          this.data = bytes;
+          this.position = 0;
+        }
+
+        done() {
+          return this.position >= this.data.length;
+        }
+
+        varint() {
+          let value = 0;
+          let shift = 0;
+          let byte;
+          do {
+            byte = this.data[this.position++];
+            if (byte === undefined) throw new Error("Invalid vector tile");
+            value += (byte & 0x7f) * 2 ** shift;
+            shift += 7;
+          } while (byte & 0x80);
+          return value;
+        }
+
+        bytesValue() {
+          const length = this.varint();
+          const result = this.data.subarray(this.position, this.position + length);
+          this.position += length;
+          return result;
+        }
+
+        float32() {
+          const view = new DataView(this.data.buffer, this.data.byteOffset + this.position, 4);
+          this.position += 4;
+          return view.getFloat32(0, true);
+        }
+
+        float64() {
+          const view = new DataView(this.data.buffer, this.data.byteOffset + this.position, 8);
+          this.position += 8;
+          return view.getFloat64(0, true);
+        }
+
+        skip(wire) {
+          if (wire === 0) this.varint();
+          else if (wire === 1) this.position += 8;
+          else if (wire === 2) {
+            const length = this.varint();
+            this.position += length;
+          } else if (wire === 5) this.position += 4;
+          else throw new Error(`Unsupported vector tile wire type ${wire}`);
+        }
+      }
+
+      function parseVectorLayer(bytes) {
+        const reader = new ProtoReader(bytes);
+        const layer = { name: "", extent: 4096, keys: [], values: [], rawFeatures: [] };
+        while (!reader.done()) {
+          const tag = reader.varint();
+          const field = Math.floor(tag / 8);
+          const wire = tag % 8;
+          if (field === 1) layer.name = new TextDecoder().decode(reader.bytesValue());
+          else if (field === 2) layer.rawFeatures.push(reader.bytesValue());
+          else if (field === 3) layer.keys.push(new TextDecoder().decode(reader.bytesValue()));
+          else if (field === 4) layer.values.push(parseMvtValue(reader.bytesValue()));
+          else if (field === 5) layer.extent = reader.varint();
+          else reader.skip(wire);
+        }
+        layer.features = layer.rawFeatures.map((feature) =>
+          parseMvtFeature(feature, layer.keys, layer.values),
+        );
+        return layer;
+      }
+
+      function parseMvtValue(bytes) {
+        const reader = new ProtoReader(bytes);
+        let value = null;
+        while (!reader.done()) {
+          const tag = reader.varint();
+          const field = Math.floor(tag / 8);
+          const wire = tag % 8;
+          if (field === 1) value = new TextDecoder().decode(reader.bytesValue());
+          else if (field === 2) value = reader.float32();
+          else if (field === 3) value = reader.float64();
+          else if (field === 4 || field === 5) value = reader.varint();
+          else if (field === 6) {
+            const encoded = reader.varint();
+            value = (encoded >>> 1) ^ -(encoded & 1);
+          } else if (field === 7) value = Boolean(reader.varint());
+          else reader.skip(wire);
+        }
+        return value;
+      }
+
+      function parseMvtFeature(bytes, keys, values) {
+        const reader = new ProtoReader(bytes);
+        const feature = { type: 0, properties: {}, geometry: new Uint8Array() };
+        let tags = [];
+        while (!reader.done()) {
+          const tag = reader.varint();
+          const field = Math.floor(tag / 8);
+          const wire = tag % 8;
+          if (field === 2) {
+            const packed = new ProtoReader(reader.bytesValue());
+            while (!packed.done()) tags.push(packed.varint());
+          } else if (field === 3) feature.type = reader.varint();
+          else if (field === 4) feature.geometry = reader.bytesValue();
+          else reader.skip(wire);
+        }
+        for (let index = 0; index < tags.length; index += 2) {
+          feature.properties[keys[tags[index]]] = values[tags[index + 1]];
+        }
+        return feature;
+      }
+
+      function decodeMvtGeometry(bytes) {
+        const reader = new ProtoReader(bytes);
+        const paths = [];
+        let x = 0;
+        let y = 0;
+        while (!reader.done()) {
+          const commandLength = reader.varint();
+          const command = commandLength & 0x7;
+          const count = commandLength >> 3;
+          if (command === 1 || command === 2) {
+            for (let index = 0; index < count; index++) {
+              const dx = reader.varint();
+              const dy = reader.varint();
+              x += (dx >>> 1) ^ -(dx & 1);
+              y += (dy >>> 1) ^ -(dy & 1);
+              if (command === 1) paths.push([[x, y]]);
+              else if (paths.length) paths.at(-1).push([x, y]);
+            }
+          } else if (command === 7 && paths.length) {
+            const path = paths.at(-1);
+            if (path.length && distance(path[0], path.at(-1)) > 0) path.push([...path[0]]);
+          } else {
+            throw new Error(`Unsupported vector tile geometry command ${command}`);
+          }
+        }
+        return paths;
+      }
+
+      /*
+       * Project, clip, simplify, and declutter the map data into design space:
+       * millimeters, centered on the origin, y pointing down.
+       */
+      function buildGeometry(data, view, size, detail) {
+        const { width, height } = size;
+        const scale = width / view.worldWidth;
+        const xLimit = width / 2;
+        const yLimit = height / 2;
+        // Tolerances and spacings in millimeters.
+        const settings = {
+          high: {
+            roadTolerance: 0.1,
+            polygonTolerance: 0.08,
+            minArea: 0.35,
+            maxBuildings: 2200,
+            lineSpacing: 0.55,
+            lineNovelty: 0.18,
+            buildingSpacing: 0.5,
+            waterSpacing: 0.35,
+          },
+          medium: {
+            roadTolerance: 0.18,
+            polygonTolerance: 0.12,
+            minArea: 0.65,
+            maxBuildings: 1600,
+            lineSpacing: 0.9,
+            lineNovelty: 0.25,
+            buildingSpacing: 1,
+            waterSpacing: 0.45,
+          },
+          light: {
+            roadTolerance: 0.3,
+            polygonTolerance: 0.2,
+            minArea: 1.2,
+            maxBuildings: 900,
+            lineSpacing: 1.8,
+            lineNovelty: 0.45,
+            buildingSpacing: 2.2,
+            waterSpacing: 0.75,
+          },
+        }[detail];
+        const majorTypes = new Set(["motorway", "trunk", "primary", "secondary", "tertiary"]);
+        let majorRoads = [];
+        let minorRoads = [];
+        let buildings = [];
+        let waterLines = [];
+
+        const project = ([x, y]) => [(x - view.cx) * scale, (y - view.cy) * scale];
+
+        for (const element of data.elements) {
+          const points = element.points.map(project);
+          if (element.kind === "street") {
+            const minimumLength = element.highway === "service" ? 3 : 1;
+            for (let part of clipPolyline(points, xLimit, yLimit)) {
+              part = simplify(part, settings.roadTolerance);
+              if (part.length >= 2 && polylineLength(part) >= minimumLength) {
+                (majorTypes.has(element.highway) ? majorRoads : minorRoads).push(roundPoints(part));
+              }
+            }
+          } else if (element.kind === "water") {
+            for (let part of clipPolyline(points, xLimit, yLimit)) {
+              part = simplify(part, settings.roadTolerance);
+              if (part.length >= 2 && polylineLength(part) >= 1) {
+                waterLines.push(roundPoints(part));
+              }
+            }
+          } else if (element.kind === "building") {
+            if (distance(points[0], points.at(-1)) < 1e-6) points.pop();
+            const polygon = simplifyPolygon(
+              clipPolygon(points, xLimit, yLimit),
+              settings.polygonTolerance,
+            );
+            const area = polygonArea(polygon);
+            if (polygon.length >= 3 && area >= settings.minArea) {
+              buildings.push({ points: roundPoints(polygon), area });
+            }
+          }
+        }
+
+        majorRoads.sort((a, b) => polylineLength(b) - polylineLength(a));
+        minorRoads.sort((a, b) => polylineLength(b) - polylineLength(a));
+        buildings.sort((a, b) => b.area - a.area);
+        waterLines.sort((a, b) => polylineLength(b) - polylineLength(a));
+        const majorResult = declutterLines(majorRoads, settings.lineSpacing, settings.lineNovelty);
+        const minorResult = declutterLines(
+          minorRoads,
+          settings.lineSpacing,
+          settings.lineNovelty,
+          majorResult.occupied,
+        );
+        const waterResult = declutterLines(waterLines, settings.waterSpacing, 0.18);
+        const decluttered =
+          majorResult.lines.length < majorRoads.length ||
+          minorResult.lines.length < minorRoads.length ||
+          waterResult.lines.length < waterLines.length;
+        majorRoads = majorResult.lines;
+        minorRoads = minorResult.lines;
+        waterLines = waterResult.lines;
+        const spacedBuildings = declutterBuildings(buildings, settings.buildingSpacing);
+        const limited =
+          decluttered ||
+          spacedBuildings.length < buildings.length ||
+          majorRoads.length > 150 ||
+          minorRoads.length > 650 ||
+          spacedBuildings.length > settings.maxBuildings ||
+          waterLines.length > 250;
+
+        return {
+          majorRoads: majorRoads.slice(0, 150),
+          minorRoads: minorRoads.slice(0, 650),
+          buildings: spacedBuildings
+            .slice(0, settings.maxBuildings)
+            .map((building) => building.points),
+          waterLines: waterLines.slice(0, 250),
+          limited,
+        };
+      }
+
+      /*
+       * Glowforge operation colors: red = cut, blue = score, black = engrave.
+       */
+      function renderSvg(geometry, size) {
+        const { width, height } = size;
+        const pathData = (lines, closed) =>
+          lines
+            .map(
+              (points) =>
+                `M${points.map((point) => point.join(" ")).join("L")}${closed ? "Z" : ""}`,
+            )
+            .join("");
+        const x = formatNumber(-width / 2);
+        const y = formatNumber(-height / 2);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${formatNumber(width)}" height="${formatNumber(height)}" viewBox="${x} ${y} ${formatNumber(width)} ${formatNumber(height)}">
+<!-- Map data © OpenStreetMap contributors, ODbL 1.0 -->
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path stroke="#0000ff" stroke-width="0.15" d="${pathData(geometry.buildings, true)}"/>
+<path stroke="#0000ff" stroke-width="0.2" d="${pathData(geometry.minorRoads, false)}"/>
+<path stroke="#000000" stroke-width="0.3" d="${pathData(geometry.waterLines, false)}"/>
+<path stroke="#000000" stroke-width="0.4" d="${pathData(geometry.majorRoads, false)}"/>
+<rect stroke="#ff0000" stroke-width="0.2" x="${x}" y="${y}" width="${formatNumber(width)}" height="${formatNumber(height)}"/>
+</g>
+</svg>`;
+      }
+
+      function clipSegment(a, b, xLimit, yLimit) {
+        const [x0, y0] = a;
+        const [x1, y1] = b;
+        const dx = x1 - x0;
+        const dy = y1 - y0;
+        const p = [-dx, dx, -dy, dy];
+        const q = [x0 + xLimit, xLimit - x0, y0 + yLimit, yLimit - y0];
+        let u0 = 0;
+        let u1 = 1;
+        for (let i = 0; i < 4; i++) {
+          if (Math.abs(p[i]) < 1e-12) {
+            if (q[i] < 0) return null;
+            continue;
+          }
+          const t = q[i] / p[i];
+          if (p[i] < 0) u0 = Math.max(u0, t);
+          else u1 = Math.min(u1, t);
+          if (u0 > u1) return null;
+        }
+        return [
+          [x0 + u0 * dx, y0 + u0 * dy],
+          [x0 + u1 * dx, y0 + u1 * dy],
+        ];
+      }
+
+      function clipPolyline(points, xLimit, yLimit) {
+        const parts = [];
+        let current = [];
+        for (let i = 0; i < points.length - 1; i++) {
+          const segment = clipSegment(points[i], points[i + 1], xLimit, yLimit);
+          if (!segment) {
+            if (current.length > 1) parts.push(current);
+            current = [];
+            continue;
+          }
+          const [start, end] = segment;
+          if (current.length && distance(current.at(-1), start) < 1e-6) current.push(end);
+          else {
+            if (current.length > 1) parts.push(current);
+            current = [start, end];
+          }
+        }
+        if (current.length > 1) parts.push(current);
+        return parts;
+      }
+
+      function clipPolygon(points, xLimit, yLimit) {
+        const clipEdge = (polygon, inside, intersect) => {
+          if (!polygon.length) return [];
+          const result = [];
+          let previous = polygon.at(-1);
+          let previousInside = inside(previous);
+          for (const current of polygon) {
+            const currentInside = inside(current);
+            if (currentInside) {
+              if (!previousInside) result.push(intersect(previous, current));
+              result.push(current);
+            } else if (previousInside) {
+              result.push(intersect(previous, current));
+            }
+            previous = current;
+            previousInside = currentInside;
+          }
+          return result;
+        };
+        const vertical = (bound) => (a, b) => {
+          const t = (bound - a[0]) / (b[0] - a[0]);
+          return [bound, a[1] + t * (b[1] - a[1])];
+        };
+        const horizontal = (bound) => (a, b) => {
+          const t = (bound - a[1]) / (b[1] - a[1]);
+          return [a[0] + t * (b[0] - a[0]), bound];
+        };
+        let clipped = points;
+        clipped = clipEdge(clipped, (p) => p[0] >= -xLimit, vertical(-xLimit));
+        clipped = clipEdge(clipped, (p) => p[0] <= xLimit, vertical(xLimit));
+        clipped = clipEdge(clipped, (p) => p[1] >= -yLimit, horizontal(-yLimit));
+        return clipEdge(clipped, (p) => p[1] <= yLimit, horizontal(yLimit));
+      }
+
+      function simplify(points, tolerance) {
+        if (points.length <= 2) return points;
+        let maxDistance = 0;
+        let index = 0;
+        for (let i = 1; i < points.length - 1; i++) {
+          const candidate = pointLineDistance(points[i], points[0], points.at(-1));
+          if (candidate > maxDistance) {
+            maxDistance = candidate;
+            index = i;
+          }
+        }
+        if (maxDistance <= tolerance) return [points[0], points.at(-1)];
+        const left = simplify(points.slice(0, index + 1), tolerance);
+        const right = simplify(points.slice(index), tolerance);
+        return left.slice(0, -1).concat(right);
+      }
+
+      function simplifyPolygon(points, tolerance) {
+        if (points.length < 4) return points;
+        const deduped = [points[0]];
+        for (const point of points.slice(1)) {
+          if (distance(point, deduped.at(-1)) >= tolerance) deduped.push(point);
+        }
+        if (deduped.length > 2 && distance(deduped[0], deduped.at(-1)) < tolerance) deduped.pop();
+        if (deduped.length < 3) return [];
+        let corner = 0;
+        for (let i = 1; i < deduped.length; i++) {
+          if (
+            deduped[i][0] < deduped[corner][0] ||
+            (deduped[i][0] === deduped[corner][0] && deduped[i][1] < deduped[corner][1])
+          ) {
+            corner = i;
+          }
+        }
+        const rotated = deduped.slice(corner).concat(deduped.slice(0, corner), [deduped[corner]]);
+        return simplify(rotated, tolerance).slice(0, -1);
+      }
+
+      function pointLineDistance(point, start, end) {
+        const dx = end[0] - start[0];
+        const dy = end[1] - start[1];
+        if (dx === 0 && dy === 0) return distance(point, start);
+        let t = ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / (dx * dx + dy * dy);
+        t = Math.max(0, Math.min(1, t));
+        return distance(point, [start[0] + t * dx, start[1] + t * dy]);
+      }
+
+      function distance(a, b) {
+        return Math.hypot(a[0] - b[0], a[1] - b[1]);
+      }
+
+      function polygonArea(points) {
+        if (points.length < 3) return 0;
+        let twiceArea = 0;
+        for (let i = 0; i < points.length; i++) {
+          const next = points[(i + 1) % points.length];
+          twiceArea += points[i][0] * next[1] - next[0] * points[i][1];
+        }
+        return Math.abs(twiceArea) / 2;
+      }
+
+      function polylineLength(points) {
+        let length = 0;
+        for (let i = 0; i < points.length - 1; i++) length += distance(points[i], points[i + 1]);
+        return length;
+      }
+
+      function declutterLines(lines, cellSize, minimumNovelty, occupied = new Set()) {
+        const kept = [];
+        for (const line of lines) {
+          const cells = polylineCells(line, cellSize);
+          let novelCells = 0;
+          for (const cell of cells) {
+            if (!occupied.has(cell)) novelCells++;
+          }
+          if (cells.size && novelCells / cells.size < minimumNovelty) continue;
+          kept.push(line);
+          for (const cell of cells) occupied.add(cell);
+        }
+        return { lines: kept, occupied };
+      }
+
+      function polylineCells(points, cellSize) {
+        const cells = new Set();
+        for (let index = 0; index < points.length - 1; index++) {
+          const start = points[index];
+          const end = points[index + 1];
+          const length = distance(start, end);
+          const steps = Math.max(1, Math.ceil(length / (cellSize * 0.5)));
+          for (let step = 0; step <= steps; step++) {
+            const ratio = step / steps;
+            const x = start[0] + (end[0] - start[0]) * ratio;
+            const y = start[1] + (end[1] - start[1]) * ratio;
+            cells.add(`${Math.floor(x / cellSize)},${Math.floor(y / cellSize)}`);
+          }
+        }
+        return cells;
+      }
+
+      function declutterBuildings(buildings, cellSize) {
+        const occupied = new Set();
+        const kept = [];
+        for (const building of buildings) {
+          const center = building.points
+            .reduce((sum, point) => [sum[0] + point[0], sum[1] + point[1]], [0, 0])
+            .map((value) => value / building.points.length);
+          const cell = `${Math.floor(center[0] / cellSize)},${Math.floor(center[1] / cellSize)}`;
+          if (occupied.has(cell)) continue;
+          occupied.add(cell);
+          kept.push(building);
+        }
+        return kept;
+      }
+
+      function roundPoints(points) {
+        return points.map(([x, y]) => [formatNumber(x), formatNumber(y)]);
+      }
+
+      function formatNumber(value) {
+        return Number(value.toFixed(2));
+      }
+
+      /*
+       * Controls.
+       */
+      $("search").onclick = searchPlaces;
+
+      $("query").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          searchPlaces();
+        } else if (event.key === "ArrowDown" && $("results").firstElementChild) {
+          event.preventDefault();
+          $("results").firstElementChild.focus();
+        }
+      });
+
+      // Arrow keys move through the results; Enter chooses (native button behavior).
+      $("results").addEventListener("keydown", (event) => {
+        const current = event.target.closest("button");
+        if (!current) return;
+        if (event.key === "ArrowDown") {
+          event.preventDefault();
+          current.nextElementSibling?.focus();
+        } else if (event.key === "ArrowUp") {
+          event.preventDefault();
+          (current.previousElementSibling ?? $("query")).focus();
+        } else if (event.key === "Escape") {
+          $("results").replaceChildren();
+          setSearchStatus("");
+          $("query").focus();
+        }
+      });
+
+      $("area").addEventListener("input", keepArea);
+      $("area").addEventListener("blur", updateAreaField);
+
+      for (const id of ["width", "height"]) {
+        $(id).addEventListener("input", () => {
+          keepArea();
+          scheduleRender();
+        });
+      }
+
+      // Only the display changes; the framed area stays the same.
+      $("areaUnit").addEventListener("change", updateAreaField);
+
+      for (const radio of $("form").elements.detail) {
+        radio.addEventListener("change", scheduleRender);
+      }
+
+      /*
+       * Save the framing and the rendered vectors. Cuttle imports the SVG from
+       * _previewImage; the rest restores the plugin next time.
+       */
+      $("form").addEventListener("submit", (event) => {
+        event.preventDefault();
+        if (!window.cuttle || !map || !svgUrl) return;
+        const view = currentView();
+        cuttle.setValueAndClose({
+          query: $("query").value,
+          location: placeName,
+          latitude: view.lat,
+          longitude: view.lon,
+          areaWidthKm: view.widthKm,
+          areaDisplayUnit: $("areaUnit").value,
+          aspect: [Number($("width").value), Number($("height").value)],
+          detail: $("form").elements.detail.value,
+          _previewText: placeName || `${view.lat.toFixed(4)}, ${view.lon.toFixed(4)}`,
+          _previewImage: svgUrl,
+        });
+      });
+
+      updateFrame();
+
+      /*
+       * Restore the plugin from the Cuttle value.
+       */
+      if (window.cuttle) {
+        cuttle.ready((value) => {
+          if (!value) return;
+
+          $("query").value = value.query ?? "";
+          placeName = value.location ?? "";
+          if (["mi", "km"].includes(value.areaDisplayUnit)) {
+            $("areaUnit").value = value.areaDisplayUnit;
+          }
+          const [aspectWidth, aspectHeight] = Array.isArray(value.aspect) ? value.aspect : [];
+          if (Number(aspectWidth) > 0 && Number(aspectHeight) > 0) {
+            $("width").value = aspectWidth;
+            $("height").value = aspectHeight;
+          }
+          if (["light", "medium", "high"].includes(value.detail)) {
+            $("form").elements.detail.value = value.detail;
+          }
+          updateFrame();
+
+          const lat = Number(value.latitude);
+          const lon = Number(value.longitude);
+          const areaKm = Number(value.areaWidthKm);
+          if (Number.isFinite(lat) && Number.isFinite(lon)) {
+            // Wait until the plugin has rendered before initializing Leaflet.
+            setTimeout(() => showLocation(lat, lon, areaKm > 0 ? areaKm : 3), 0);
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
