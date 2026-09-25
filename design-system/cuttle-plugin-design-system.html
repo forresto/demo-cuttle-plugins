@@ -1,0 +1,423 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width" />
+<title>Cuttle Plugin Style</title>
+<!--
+CUTTLE PLUGIN STYLE: a starting point, not a rulebook. A plugin is just a web page, so do
+whatever its UX needs (full-width preview, no preview, custom controls). Borrow what helps.
+
+- Will render in an iframe of any size, 300px to full screen: 1 column narrow, 2 wide, avoid sideways scroll.
+- Labeled, named controls.
+- One "Save" button.primary at the end that saves explicitly.
+- Blue is for actions and focus; the design's own colors go in the content.
+- Do what Cuttle can't (search, analysis, simulation); leave the rest to Cuttle (icons, fonts, modifiers).
+- System font, native inputs, prefer vanilla JS.
+-->
+<style>
+  :root {
+    --bg: #fafafa;
+    --panel: #f3f3f3;
+    --field: #e6e6e6;
+    --field-h: #dedede;
+    --ink: rgba(0, 0, 0, 0.85);
+    --ink2: rgba(0, 0, 0, 0.5);
+    --line: rgba(0, 0, 0, 0.1);
+    --blue: hsl(200, 100%, 50%);
+    --blue-h: hsl(200, 100%, 58%);
+    --accent: hsl(262, 80%, 64%);
+    --warn: hsl(42, 100%, 88%);
+    --error: hsl(0, 70%, 92%);
+    --error-ink: hsl(12, 68%, 40%);
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0;
+    padding: 12px;
+    background: var(--bg);
+    color: var(--ink);
+    font:
+      14px/1.4 system-ui,
+      -apple-system,
+      sans-serif;
+  }
+
+  .layout {
+    display: grid;
+    gap: 12px;
+    align-items: start;
+  }
+  @media (min-width: 640px) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+  }
+  @media (min-width: 1000px) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr) 420px;
+    }
+  }
+
+  .preview {
+    position: relative;
+    display: grid;
+    place-items: center;
+    aspect-ratio: 4/3;
+    min-height: 200px;
+    max-height: calc(100vh - 24px);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px var(--line),
+      0 4px 16px rgba(0, 0, 0, 0.08);
+    background: #fff;
+  }
+  .preview > img,
+  .preview > canvas {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+  }
+  .preview > .fill {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+  .preview svg {
+    width: 60%;
+    height: 70%;
+    filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.15));
+  }
+  .empty {
+    color: var(--ink2);
+    text-align: center;
+    padding: 24px;
+  }
+  .preview[aria-busy="true"] {
+    opacity: 0.6;
+  }
+  /* After the base .preview rule, or position: relative wins. */
+  @media (min-width: 640px) {
+    .preview {
+      position: sticky;
+      top: 12px;
+    }
+  }
+
+  .controls {
+    display: grid;
+    gap: 12px;
+  }
+  .panel,
+  details > div {
+    display: grid;
+    gap: 8px;
+  }
+  .panel {
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 12px;
+  }
+  .row {
+    display: grid;
+    grid-template-columns: minmax(72px, 2fr) 3fr;
+    gap: 8px;
+    align-items: center;
+  }
+  .pair {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    min-width: 0;
+  }
+  .pair select,
+  .pair button {
+    flex: none;
+    width: auto;
+  }
+  h3 {
+    margin: 4px 0 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink2);
+  }
+  small {
+    font-size: 12px;
+    color: var(--ink2);
+  }
+  small a {
+    color: inherit;
+  }
+  output {
+    font-family: var(--mono);
+  }
+
+  input,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+    border: 0;
+    border-radius: 6px;
+    background: var(--field);
+    padding: 4px 8px;
+    width: 100%;
+    min-width: 0;
+    min-height: 28px;
+  }
+  input:hover,
+  select:hover,
+  button:not(:disabled):hover {
+    background: var(--field-h);
+  }
+  input[type="number"] {
+    font-family: var(--mono);
+    text-align: center;
+  }
+  input[type="range"] {
+    padding: 0;
+    background: none;
+    accent-color: var(--blue);
+    cursor: pointer;
+  }
+  input[type="checkbox"] {
+    width: 18px;
+    min-height: 18px;
+    justify-self: start;
+    accent-color: var(--blue);
+  }
+  input[type="color"] {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    min-height: 0;
+    padding: 0;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px var(--line);
+    cursor: pointer;
+  }
+  input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+  input[type="color"]::-webkit-color-swatch {
+    border: 0;
+    border-radius: inherit;
+  }
+  input[type="color"]::-moz-color-swatch {
+    border: 0;
+    border-radius: inherit;
+  }
+  :focus-visible {
+    outline: 2px solid var(--blue);
+    outline-offset: 1px;
+  }
+  button {
+    cursor: pointer;
+  }
+  button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+
+  .primary {
+    background: var(--blue);
+    color: #fff;
+    font-weight: 600;
+    padding: 10px 16px;
+    border-radius: 8px;
+    box-shadow: 0 2px 6px rgba(0, 120, 200, 0.3);
+  }
+  .primary:hover:not(:disabled) {
+    background: var(--blue-h);
+  }
+
+  .seg {
+    display: flex;
+    padding: 2px;
+    gap: 2px;
+    background: var(--field);
+    border-radius: 6px;
+  }
+  .seg label {
+    position: relative;
+    flex: 1;
+    text-align: center;
+    padding: 2px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--ink2);
+  }
+  .seg input {
+    position: absolute;
+    inset: 0;
+    width: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .seg label:has(:checked) {
+    background: #fff;
+    color: var(--ink);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  }
+  .seg label:has(:focus-visible) {
+    outline: 2px solid var(--blue);
+  }
+
+  summary {
+    background: var(--field);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-weight: 600;
+    color: var(--ink2);
+    cursor: pointer;
+  }
+  details > div {
+    margin: 8px 0 0 4px;
+    padding-left: 12px;
+    border-left: 2px solid var(--line);
+  }
+
+  .drop {
+    position: relative;
+    display: block;
+    padding: 16px;
+    text-align: center;
+    border: 2px dashed var(--line);
+    border-radius: 10px;
+    color: var(--ink2);
+    cursor: pointer;
+  }
+  .drop:hover,
+  .drop:focus-within {
+    border-color: var(--blue);
+    color: var(--ink);
+  }
+  .drop input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(28px, 1fr));
+    gap: 4px;
+  }
+  .swatches > input[type="color"] {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+    border-radius: 6px;
+  }
+
+  .note {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 6px;
+    background: #fff;
+    box-shadow: inset 0 0 0 1px var(--line);
+    font-size: 13px;
+  }
+  .note.warn {
+    background: var(--warn);
+  }
+  .note.error {
+    background: var(--error);
+    color: var(--error-ink);
+  }
+</style>
+
+<div class="layout">
+  <div class="preview" aria-live="polite">
+    <svg viewBox="0 0 100 110" aria-label="Preview">
+      <path
+        fill="var(--accent)"
+        fill-rule="evenodd"
+        d="M8 12h14a10 10 0 0 1 20 0h50a8 8 0 0 1 8 8v82a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V20a8 8 0 0 1 8-8zM32 6a5 5 0 1 0 0.01 0z"
+      />
+      <rect x="18" y="30" width="64" height="64" rx="3" fill="#222" />
+    </svg>
+  </div>
+
+  <div class="controls">
+    <div class="panel">
+      <h3>Group A</h3>
+      <label class="row">Text <input type="text" name="text" value="Hello" /></label>
+      <label class="row"
+        >Number
+        <span class="pair">
+          <input type="number" name="number" value="2.00" step="0.01" min="0" />
+          <select name="number_unit" aria-label="Number unit">
+            <option>mm</option>
+            <option>cm</option>
+            <option selected>in</option>
+            <option>px</option>
+          </select>
+        </span>
+      </label>
+      <label class="row"
+        >Range <input type="range" name="range" value="50" min="0" max="100"
+      /></label>
+      <div class="row">
+        <span>Choice</span>
+        <span class="seg">
+          <label><input type="radio" name="choice" value="a" checked />A</label>
+          <label><input type="radio" name="choice" value="b" />B</label>
+          <label><input type="radio" name="choice" value="c" />C</label>
+        </span>
+      </div>
+
+      <details open>
+        <summary>Subgroup A</summary>
+        <div>
+          <label class="row"
+            >Toggle <input type="checkbox" name="toggle" value="1" checked
+          /></label>
+          <label class="row"
+            >Select
+            <select name="select">
+              <option>Option 1</option>
+              <option>Option 2</option>
+              <option>Option 3</option>
+            </select></label
+          >
+          <label class="row">Color <input type="color" name="color" value="#8b5cf6" /></label>
+        </div>
+      </details>
+
+      <details>
+        <summary>Subgroup B</summary>
+        <div>
+          <label class="drop"
+            >Drop a file or <u>browse</u><input type="file" name="file" accept="image/*"
+          /></label>
+          <small>Help text goes under the field it explains.</small>
+        </div>
+      </details>
+    </div>
+
+    <div class="panel">
+      <h3>Group B</h3>
+      <div class="swatches">
+        <input type="color" name="palette" value="#222222" aria-label="Palette color 1" />
+        <input type="color" name="palette" value="#8b5cf6" aria-label="Palette color 2" />
+        <input type="color" name="palette" value="#f472b6" aria-label="Palette color 3" />
+        <input type="color" name="palette" value="#fbbf24" aria-label="Palette color 4" />
+        <input type="color" name="palette" value="#ffffff" aria-label="Palette color 5" />
+      </div>
+      <p class="note warn">Warnings sit next to the field that caused them.</p>
+    </div>
+
+    <button type="button" class="primary">Save</button>
+    <small>Credits and sources go here.</small>
+  </div>
+</div>

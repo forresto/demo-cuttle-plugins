@@ -4,7 +4,7 @@ Cuttle Customizer plugin that extracts a color palette from an uploaded image.
 
 ## Live
 
-https://cuttlexyz.github.io/demo-cuttle-plugins/image-to-palette/
+https://forresto.github.io/demo-cuttle-plugins/image-to-palette/
 
 ## Value
 

@@ -1,798 +1,685 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <title>Coordinates Picker</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Coordinates Picker</title>
 
-  <script src="https://cuttle.xyz/editor/customizer/v1.js"></script>
+    <script src="https://cuttle.xyz/editor/customizer/v1.js"></script>
 
-  <link
-    rel="stylesheet"
-    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <script
-    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
-  </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <style>
-    body {
-      font-family: system-ui, sans-serif;
-      margin: 20px;
-      color: #222;
-    }
-
-    label {
-      display: block;
-      font-size: 12px;
-      font-weight: 600;
-      margin-bottom: 5px;
-    }
-
-    .search {
-      display: flex;
-      gap: 6px;
-    }
-
-    input[type="text"] {
-      flex: 1;
-      min-width: 0;
-      padding: 8px;
-      border: 1px solid #bbb;
-      border-radius: 5px;
-      font-size: 14px;
-    }
-
-    button {
-      padding: 8px 12px;
-      border: 0;
-      border-radius: 5px;
-      cursor: pointer;
-      background: #222;
-      color: white;
-    }
-
-    button:disabled {
-      opacity: 0.5;
-      cursor: default;
-    }
-
-    #status {
-      font-size: 12px;
-      color: #666;
-      margin: 8px 0;
-      min-height: 16px;
-    }
-
-    #results {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-      margin-bottom: 12px;
-    }
-
-    .result {
-      text-align: left;
-      background: #f2f2f2;
-      color: #222;
-      width: 100%;
-    }
-
-    .result:hover {
-      background: #ddd;
-    }
-
-    #map {
-      width: 100%;
-      height: 300px;
-      border-radius: 6px;
-      margin-top: 10px;
-      display: none;
-    }
-
-    .coordinates {
-      margin-top: 10px;
-      padding: 8px 10px;
-      background: #f5f5f5;
-      border-radius: 6px;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 12px;
-      line-height: 1.6;
-    }
-
-    #save {
-      margin-top: 15px;
-      width: 100%;
-    }
-
-    .attribution {
-      margin-top: 8px;
-      font-size: 10px;
-      color: #777;
-    }
-  </style>
-</head>
-
-<body>
-
-  <label for="query">Place</label>
-
-  <div class="search">
-    <input
-      id="query"
-      type="text"
-      placeholder="Search for a place..."
-      autocomplete="off"
-    >
-    <button id="search">Search</button>
-  </div>
-
-  <div id="status"></div>
-  <div id="results"></div>
-
-  <div id="map"></div>
-
-  <div
-    id="coordinates"
-    class="coordinates"
-    style="display:none"
-  ></div>
-
-  <button id="save">Save</button>
-
-  <div class="attribution">
-    Map © OpenStreetMap contributors · Leaflet
-  </div>
-
-
-<script>
-
-  let map = null;
-  let marker = null;
-
-  // Full-precision authoritative coordinates.
-  let latitude = null;
-  let longitude = null;
-
-
-  const $ = id =>
-    document.getElementById(id);
-
-
-  /*
-   * Convert decimal degrees to DMS.
-   *
-   * Seconds are rounded to whole numbers.
-   */
-  function decimalToDMS(
-    value,
-    positive,
-    negative
-  ) {
-
-    const direction =
-      value >= 0
-        ? positive
-        : negative;
-
-    const absolute =
-      Math.abs(value);
-
-    let degrees =
-      Math.floor(absolute);
-
-    const minutesFloat =
-      (absolute - degrees) * 60;
-
-    let minutes =
-      Math.floor(minutesFloat);
-
-    let seconds =
-      Math.round(
-        (minutesFloat - minutes) * 60
-      );
-
-
-    /*
-     * Carry 60 seconds into minutes.
-     */
-    if (seconds === 60) {
-
-      seconds = 0;
-      minutes++;
-
-      if (minutes === 60) {
-        minutes = 0;
-        degrees++;
+    <style>
+      /* Cuttle plugin design system (2026-09-25), only the parts this plugin uses. */
+      :root {
+        --bg: #fafafa;
+        --panel: #f3f3f3;
+        --field: #e6e6e6;
+        --field-h: #dedede;
+        --ink: rgba(0, 0, 0, 0.85);
+        --ink2: rgba(0, 0, 0, 0.5);
+        --line: rgba(0, 0, 0, 0.1);
+        --blue: hsl(200, 100%, 50%);
+        --blue-h: hsl(200, 100%, 58%);
+        --error: hsl(0, 70%, 92%);
+        --error-ink: hsl(12, 68%, 40%);
+        --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
       }
-    }
-
-
-    return {
-      direction,
-      degrees,
-      minutes,
-      seconds
-    };
-  }
-
-
-  function formatCoordinate(
-    value,
-    positive,
-    negative
-  ) {
-
-    const dms =
-      decimalToDMS(
-        value,
-        positive,
-        negative
-      );
-
-    return (
-      `${dms.direction} ` +
-      `${dms.degrees}° ` +
-      `${dms.minutes}' ` +
-      `${dms.seconds}"`
-    );
-  }
-
-
-  /*
-   * Update the visible coordinate readout.
-   */
-  function updateCoordinateDisplay() {
-
-    if (
-      latitude === null ||
-      longitude === null
-    ) {
-      $("coordinates").style.display =
-        "none";
-
-      return;
-    }
-
-
-    $("coordinates").style.display =
-      "block";
-
-
-    $("coordinates").innerHTML =
-      `<div>Latitude: ` +
-      `${formatCoordinate(
-        latitude,
-        "N",
-        "S"
-      )}</div>` +
-
-      `<div>Longitude: ` +
-      `${formatCoordinate(
-        longitude,
-        "E",
-        "W"
-      )}</div>`;
-  }
-
-
-  /*
-   * Create the Leaflet map on first use.
-   */
-  function ensureMap() {
-
-    if (map) return;
-
-
-    $("map").style.display =
-      "block";
-
-
-    map = L.map("map");
-
-
-    L.tileLayer(
-      "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-      {
-        maxZoom: 19,
-
-        attribution:
-          "&copy; OpenStreetMap contributors"
+      * {
+        box-sizing: border-box;
       }
-    ).addTo(map);
+      body {
+        margin: 0;
+        padding: 12px;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          14px/1.4 system-ui,
+          -apple-system,
+          sans-serif;
+      }
 
+      .layout {
+        display: grid;
+        gap: 12px;
+        align-items: start;
+      }
+      .preview {
+        position: relative;
+        display: grid;
+        place-items: center;
+        aspect-ratio: 4/3;
+        min-height: 200px;
+        max-height: calc(100vh - 24px);
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow:
+          0 0 0 1px var(--line),
+          0 4px 16px rgba(0, 0, 0, 0.08);
+        background: #fff;
+      }
+      .empty {
+        color: var(--ink2);
+        text-align: center;
+        padding: 24px;
+      }
+      .preview[aria-busy="true"] {
+        opacity: 0.6;
+      }
 
-    /*
-     * Clicking anywhere on the map
-     * moves the marker there.
-     */
-    map.on("click", event => {
+      /* Media queries sit after .preview so sticky beats position: relative. */
+      @media (min-width: 640px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+        .preview {
+          position: sticky;
+          top: 12px;
+        }
+      }
+      @media (min-width: 1000px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr) 420px;
+        }
+      }
 
-      setLocation(
-        event.latlng.lat,
-        event.latlng.lng,
-        false
-      );
-    });
-  }
+      form {
+        display: grid;
+        gap: 12px;
+      }
+      .panel {
+        display: grid;
+        gap: 8px;
+        background: var(--panel);
+        border-radius: 10px;
+        padding: 12px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: minmax(72px, 2fr) 3fr;
+        gap: 8px;
+        align-items: center;
+      }
+      .pair {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        min-width: 0;
+      }
+      h3 {
+        margin: 4px 0 0;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink2);
+      }
+      small {
+        font-size: 12px;
+        color: var(--ink2);
+      }
 
+      input,
+      button {
+        font: inherit;
+        color: inherit;
+        border: 0;
+        border-radius: 6px;
+        background: var(--field);
+        padding: 4px 8px;
+        width: 100%;
+        min-width: 0;
+        min-height: 28px;
+      }
+      input:hover,
+      button:not(:disabled):hover {
+        background: var(--field-h);
+      }
+      :focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 1px;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
 
-  /*
-   * Set the authoritative decimal coordinates.
-   */
-  function setLocation(
-    lat,
-    lon,
-    moveMap = true
-  ) {
+      .primary {
+        background: var(--blue);
+        color: #fff;
+        font-weight: 600;
+        padding: 10px 16px;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(0, 120, 200, 0.3);
+      }
+      .primary:hover:not(:disabled) {
+        background: var(--blue-h);
+      }
 
-    latitude = Number(lat);
-    longitude = Number(lon);
+      .note {
+        margin: 0;
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: #fff;
+        box-shadow: inset 0 0 0 1px var(--line);
+        font-size: 13px;
+      }
+      .note.error {
+        background: var(--error);
+        color: var(--error-ink);
+      }
 
+      /* Plugin-specific additions. */
+      #map {
+        display: none;
+        position: absolute;
+        inset: 0;
+        isolation: isolate;
+      }
+      .pair button {
+        flex: none;
+        width: auto;
+      }
+      #status:empty,
+      #results:empty {
+        display: none;
+      }
+      #results {
+        display: grid;
+        gap: 4px;
+      }
+      #results button {
+        text-align: left;
+      }
+      #coordinates .row + .row {
+        margin-top: 8px;
+      }
+      output {
+        font-family: var(--mono);
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+    </style>
+  </head>
 
-    if (
-      !Number.isFinite(latitude) ||
-      !Number.isFinite(longitude)
-    ) {
-      return;
-    }
+  <body>
+    <div class="layout">
+      <div id="preview" class="preview" aria-live="polite">
+        <div id="map" aria-label="Map"></div>
+        <p id="empty" class="empty">Search for a place to show the map.</p>
+      </div>
 
+      <form id="form">
+        <div class="panel">
+          <h3>Location</h3>
 
-    ensureMap();
+          <div class="row">
+            <label for="query">Place</label>
+            <span class="pair">
+              <input
+                id="query"
+                name="query"
+                type="text"
+                placeholder="Search for a place..."
+                autocomplete="off"
+              />
+              <button id="search" type="button">Search</button>
+            </span>
+          </div>
 
+          <p id="status" class="note" aria-live="polite"></p>
+          <div id="results"></div>
 
-    const position = [
-      latitude,
-      longitude
-    ];
+          <div id="coordinates" style="display: none">
+            <div class="row">
+              <span>Latitude</span>
+              <output id="latitude_out"></output>
+            </div>
+            <div class="row">
+              <span>Longitude</span>
+              <output id="longitude_out"></output>
+            </div>
+          </div>
+        </div>
 
+        <button id="save" type="submit" class="primary">Save</button>
 
-    if (!marker) {
+        <small>Map © OpenStreetMap contributors · Leaflet</small>
+      </form>
+    </div>
 
-      marker =
-        L.marker(position, {
-          draggable: true
+    <script>
+      let map = null;
+      let marker = null;
+
+      // Full-precision authoritative coordinates.
+      let latitude = null;
+      let longitude = null;
+
+      const $ = (id) => document.getElementById(id);
+
+      /*
+       * Convert decimal degrees to DMS.
+       *
+       * Seconds are rounded to whole numbers.
+       */
+      function decimalToDMS(value, positive, negative) {
+        const direction = value >= 0 ? positive : negative;
+
+        const absolute = Math.abs(value);
+
+        let degrees = Math.floor(absolute);
+
+        const minutesFloat = (absolute - degrees) * 60;
+
+        let minutes = Math.floor(minutesFloat);
+
+        let seconds = Math.round((minutesFloat - minutes) * 60);
+
+        /*
+         * Carry 60 seconds into minutes.
+         */
+        if (seconds === 60) {
+          seconds = 0;
+          minutes++;
+
+          if (minutes === 60) {
+            minutes = 0;
+            degrees++;
+          }
+        }
+
+        return {
+          direction,
+          degrees,
+          minutes,
+          seconds,
+        };
+      }
+
+      function formatCoordinate(value, positive, negative) {
+        const dms = decimalToDMS(value, positive, negative);
+
+        return `${dms.direction} ` + `${dms.degrees}° ` + `${dms.minutes}' ` + `${dms.seconds}"`;
+      }
+
+      /*
+       * Update the visible coordinate readout.
+       */
+      function updateCoordinateDisplay() {
+        if (latitude === null || longitude === null) {
+          $("coordinates").style.display = "none";
+
+          return;
+        }
+
+        $("coordinates").style.display = "block";
+
+        $("latitude_out").textContent = formatCoordinate(latitude, "N", "S");
+
+        $("longitude_out").textContent = formatCoordinate(longitude, "E", "W");
+
+        // A new location clears any earlier error.
+        $("status").classList.remove("error");
+      }
+
+      /*
+       * Create the Leaflet map on first use.
+       */
+      function ensureMap() {
+        if (map) return;
+
+        $("map").style.display = "block";
+
+        $("empty").hidden = true;
+
+        map = L.map("map");
+
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+
+          attribution: "&copy; OpenStreetMap contributors",
         }).addTo(map);
 
-
-      marker.on(
-        "dragend",
-        () => {
-
-          const position =
-            marker.getLatLng();
-
-
-          latitude =
-            position.lat;
-
-          longitude =
-            position.lng;
-
-
-          updateCoordinateDisplay();
-
-
-          $("status").textContent =
-            "Drag the marker to fine-tune the location.";
-        }
-      );
-
-    } else {
-
-      marker.setLatLng(position);
-    }
-
-
-    if (moveMap) {
-
-      map.setView(
-        position,
-        16
-      );
-    }
-
-
-    updateCoordinateDisplay();
-  }
-
-
-  /*
-   * Search OpenStreetMap / Nominatim.
-   */
-  async function searchPlaces() {
-
-    const query =
-      $("query").value.trim();
-
-
-    if (!query) return;
-
-
-    $("search").disabled =
-      true;
-
-    $("status").textContent =
-      "Searching...";
-
-    $("results").replaceChildren();
-
-
-    try {
-
-      const url =
-        "https://nominatim.openstreetmap.org/search?" +
-        new URLSearchParams({
-          q: query,
-          format: "jsonv2",
-          limit: "5",
-          addressdetails: "1"
+        /*
+         * Clicking anywhere on the map
+         * moves the marker there.
+         */
+        map.on("click", (event) => {
+          setLocation(event.latlng.lat, event.latlng.lng, false);
         });
-
-
-      const response =
-        await fetch(url);
-
-
-      if (!response.ok) {
-
-        throw new Error(
-          `HTTP ${response.status}`
-        );
       }
-
-
-      const places =
-        await response.json();
-
-
-      if (!places.length) {
-
-        $("status").textContent =
-          "No places found.";
-
-        return;
-      }
-
-
-      $("status").textContent =
-        `${places.length} result` +
-        `${places.length === 1 ? "" : "s"}:`;
-
-
-      for (const place of places) {
-
-        const button =
-          document.createElement("button");
-
-
-        button.className =
-          "result";
-
-        button.textContent =
-          place.display_name;
-
-
-        button.onclick = () => {
-
-          const lat =
-            Number(place.lat);
-
-          const lon =
-            Number(place.lon);
-
-
-          $("query").value =
-            query;
-
-
-          setLocation(
-            lat,
-            lon,
-            true
-          );
-
-
-          $("results")
-            .replaceChildren();
-
-
-          $("status").textContent =
-            "Drag the marker to fine-tune the location.";
-        };
-
-
-        $("results")
-          .appendChild(button);
-      }
-
-
-    } catch (error) {
-
-      console.error(error);
-
-
-      $("status").textContent =
-        "Search failed. Please try again.";
-
-    } finally {
-
-      $("search").disabled =
-        false;
-    }
-  }
-
-
-  /*
-   * Restore the plugin from the Cuttle value.
-   *
-   * latitude and longitude are the ONLY inputs
-   * used to restore the map.
-   */
-  cuttle.ready(value => {
-
-    if (!value) return;
-
-
-    $("query").value =
-      value.query ?? "";
-
-
-    const lat =
-      Number(value.latitude);
-
-    const lon =
-      Number(value.longitude);
-
-
-    if (
-      Number.isFinite(lat) &&
-      Number.isFinite(lon)
-    ) {
 
       /*
-       * Wait until the plugin has rendered before
-       * initializing Leaflet.
+       * Set the authoritative decimal coordinates.
        */
-      setTimeout(() => {
+      function setLocation(lat, lon, moveMap = true) {
+        latitude = Number(lat);
+        longitude = Number(lon);
 
-        setLocation(
-          lat,
-          lon,
-          true
-        );
+        if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+          return;
+        }
 
+        ensureMap();
 
-        map.invalidateSize();
+        const position = [latitude, longitude];
 
+        if (!marker) {
+          marker = L.marker(position, {
+            draggable: true,
+          }).addTo(map);
 
-        $("status").textContent =
-          "Drag the marker to fine-tune the location.";
+          marker.on("dragend", () => {
+            const position = marker.getLatLng();
 
-      }, 0);
-    }
-  });
+            latitude = position.lat;
 
+            longitude = position.lng;
 
-  /*
-   * Search button.
-   */
-  $("search").onclick =
-    searchPlaces;
+            updateCoordinateDisplay();
 
+            $("status").textContent = "Drag the marker to fine-tune the location.";
+          });
+        } else {
+          marker.setLatLng(position);
+        }
 
-  /*
-   * Enter in search field.
-   */
-  $("query").addEventListener(
-    "keydown",
-    event => {
+        if (moveMap) {
+          map.setView(position, 16);
+        }
 
-      if (event.key === "Enter") {
-
-        event.preventDefault();
-
-        searchPlaces();
+        updateCoordinateDisplay();
       }
-    }
-  );
 
+      /*
+       * Search OpenStreetMap / Nominatim.
+       */
+      async function searchPlaces() {
+        const query = $("query").value.trim();
 
-  /*
-   * Render a static 4:3 OpenStreetMap image centered on the marker by
-   * stitching tiles onto a canvas. Returns a JPEG data URL, or undefined if
-   * any tile fails to load.
-   */
-  async function renderPreviewImage(lat, lon) {
+        if (!query) return;
 
-    const width = 320;
-    const height = 240;
-    const zoom = 16;
-    const tileSize = 256;
-    const worldSize = tileSize * 2 ** zoom;
+        $("search").disabled = true;
 
-    const latRadians = lat * Math.PI / 180;
+        $("status").classList.remove("error");
 
-    const centerX =
-      (lon + 180) / 360 * worldSize;
+        $("status").textContent = "Searching...";
 
-    const centerY =
-      (1 - Math.log(Math.tan(latRadians) + 1 / Math.cos(latRadians)) / Math.PI) /
-      2 * worldSize;
+        $("results").replaceChildren();
 
-    const left = centerX - width / 2;
-    const top = centerY - height / 2;
+        try {
+          const url =
+            "https://nominatim.openstreetmap.org/search?" +
+            new URLSearchParams({
+              q: query,
+              format: "jsonv2",
+              limit: "5",
+              addressdetails: "1",
+            });
 
-    const tileCount = 2 ** zoom;
+          const response = await fetch(url);
 
-    const loadTile = (x, y) =>
-      new Promise((resolve, reject) => {
-        const image = new Image();
-        image.crossOrigin = "anonymous";
-        image.onload = () => resolve(image);
-        image.onerror = reject;
-        image.src =
-          `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+          }
+
+          const places = await response.json();
+
+          if (!places.length) {
+            $("status").textContent = "No places found.";
+
+            return;
+          }
+
+          $("status").textContent =
+            `${places.length} result` + `${places.length === 1 ? "" : "s"}:`;
+
+          for (const place of places) {
+            const button = document.createElement("button");
+
+            // Inside the form, so it must not submit.
+            button.type = "button";
+
+            button.className = "result";
+
+            button.textContent = place.display_name;
+
+            button.onclick = () => {
+              const lat = Number(place.lat);
+
+              const lon = Number(place.lon);
+
+              $("query").value = query;
+
+              setLocation(lat, lon, true);
+
+              $("results").replaceChildren();
+
+              $("status").textContent = "Drag the marker to fine-tune the location.";
+            };
+
+            $("results").appendChild(button);
+          }
+        } catch (error) {
+          console.error(error);
+
+          $("status").classList.add("error");
+
+          $("status").textContent = "Search failed. Please try again.";
+        } finally {
+          $("search").disabled = false;
+        }
+      }
+
+      /*
+       * Restore the plugin from the Cuttle value.
+       *
+       * latitude and longitude are the ONLY inputs
+       * used to restore the map.
+       */
+      cuttle.ready((value) => {
+        if (!value) return;
+
+        $("query").value = value.query ?? "";
+
+        const lat = Number(value.latitude);
+
+        const lon = Number(value.longitude);
+
+        if (Number.isFinite(lat) && Number.isFinite(lon)) {
+          /*
+           * Wait until the plugin has rendered before
+           * initializing Leaflet.
+           */
+          setTimeout(() => {
+            setLocation(lat, lon, true);
+
+            map.invalidateSize();
+
+            $("status").textContent = "Drag the marker to fine-tune the location.";
+          }, 0);
+        }
       });
 
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
+      /*
+       * Search button.
+       */
+      $("search").onclick = searchPlaces;
 
-    const tileRequests = [];
+      /*
+       * Enter in search field.
+       */
+      $("query").addEventListener("keydown", (event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
 
-    for (
-      let tileY = Math.floor(top / tileSize);
-      tileY <= Math.floor((top + height) / tileSize);
-      tileY++
-    ) {
-      for (
-        let tileX = Math.floor(left / tileSize);
-        tileX <= Math.floor((left + width) / tileSize);
-        tileX++
-      ) {
+          searchPlaces();
+        }
+      });
 
-        // Wrap horizontally across the antimeridian; skip beyond the poles.
-        const wrappedX = ((tileX % tileCount) + tileCount) % tileCount;
-        if (tileY < 0 || tileY >= tileCount) continue;
+      /*
+       * Render a static 4:3 OpenStreetMap image centered on the marker by
+       * stitching tiles onto a canvas. Returns a JPEG data URL, or undefined if
+       * any tile fails to load.
+       */
+      async function renderPreviewImage(lat, lon) {
+        const width = 320;
+        const height = 240;
+        const zoom = 16;
+        const tileSize = 256;
+        const worldSize = tileSize * 2 ** zoom;
 
-        tileRequests.push(
-          loadTile(wrappedX, tileY).then(image => {
-            context.drawImage(
-              image,
-              tileX * tileSize - left,
-              tileY * tileSize - top
+        const latRadians = (lat * Math.PI) / 180;
+
+        const centerX = ((lon + 180) / 360) * worldSize;
+
+        const centerY =
+          ((1 - Math.log(Math.tan(latRadians) + 1 / Math.cos(latRadians)) / Math.PI) / 2) *
+          worldSize;
+
+        const left = centerX - width / 2;
+        const top = centerY - height / 2;
+
+        const tileCount = 2 ** zoom;
+
+        const loadTile = (x, y) =>
+          new Promise((resolve, reject) => {
+            const image = new Image();
+            image.crossOrigin = "anonymous";
+            image.onload = () => resolve(image);
+            image.onerror = reject;
+            image.src = `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+          });
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext("2d");
+
+        const tileRequests = [];
+
+        for (
+          let tileY = Math.floor(top / tileSize);
+          tileY <= Math.floor((top + height) / tileSize);
+          tileY++
+        ) {
+          for (
+            let tileX = Math.floor(left / tileSize);
+            tileX <= Math.floor((left + width) / tileSize);
+            tileX++
+          ) {
+            // Wrap horizontally across the antimeridian; skip beyond the poles.
+            const wrappedX = ((tileX % tileCount) + tileCount) % tileCount;
+            if (tileY < 0 || tileY >= tileCount) continue;
+
+            tileRequests.push(
+              loadTile(wrappedX, tileY).then((image) => {
+                context.drawImage(image, tileX * tileSize - left, tileY * tileSize - top);
+              }),
             );
-          })
-        );
+          }
+        }
+
+        try {
+          await Promise.all(tileRequests);
+        } catch (error) {
+          console.error(error);
+          return undefined;
+        }
+
+        // Marker.
+        const markerX = width / 2;
+        const markerY = height / 2;
+        context.beginPath();
+        context.arc(markerX, markerY, 8, 0, Math.PI * 2);
+        context.fillStyle = "#e53935";
+        context.fill();
+        context.lineWidth = 3;
+        context.strokeStyle = "white";
+        context.stroke();
+
+        // Attribution.
+        const attribution = "© OpenStreetMap contributors";
+        context.font = "10px system-ui, sans-serif";
+        const attributionWidth = context.measureText(attribution).width + 8;
+        context.fillStyle = "rgba(255, 255, 255, 0.8)";
+        context.fillRect(width - attributionWidth, height - 14, attributionWidth, 14);
+        context.fillStyle = "#333";
+        context.fillText(attribution, width - attributionWidth + 4, height - 4);
+
+        return canvas.toDataURL("image/jpeg", 0.8);
       }
-    }
-
-    try {
-      await Promise.all(tileRequests);
-    } catch (error) {
-      console.error(error);
-      return undefined;
-    }
-
-    // Marker.
-    const markerX = width / 2;
-    const markerY = height / 2;
-    context.beginPath();
-    context.arc(markerX, markerY, 8, 0, Math.PI * 2);
-    context.fillStyle = "#e53935";
-    context.fill();
-    context.lineWidth = 3;
-    context.strokeStyle = "white";
-    context.stroke();
-
-    // Attribution.
-    const attribution = "© OpenStreetMap contributors";
-    context.font = "10px system-ui, sans-serif";
-    const attributionWidth = context.measureText(attribution).width + 8;
-    context.fillStyle = "rgba(255, 255, 255, 0.8)";
-    context.fillRect(width - attributionWidth, height - 14, attributionWidth, 14);
-    context.fillStyle = "#333";
-    context.fillText(attribution, width - attributionWidth + 4, height - 4);
-
-    return canvas.toDataURL("image/jpeg", 0.8);
-  }
-
-
-  /*
-   * Save.
-   */
-  $("save").onclick = async () => {
-
-    if (
-      latitude === null ||
-      longitude === null
-    ) {
-
-      $("status").textContent =
-        "Please search for a place or choose a location on the map.";
-
-      return;
-    }
-
-
-    /*
-     * Generate DMS only for the output fields.
-     * The decimal values remain full precision.
-     */
-    const lat =
-      decimalToDMS(
-        latitude,
-        "N",
-        "S"
-      );
-
-
-    const lon =
-      decimalToDMS(
-        longitude,
-        "E",
-        "W"
-      );
-
-
-    const value = {
-
-      query:
-        $("query").value,
-
 
       /*
-       * Authoritative coordinates.
+       * Save.
        */
-      latitude:
-        latitude,
+      $("form").onsubmit = async (event) => {
+        event.preventDefault();
 
-      longitude:
-        longitude,
+        if (latitude === null || longitude === null) {
+          $("status").classList.add("error");
 
+          $("status").textContent = "Please search for a place or choose a location on the map.";
 
-      /*
-       * DMS representation.
-       */
-      direction1:
-        lat.direction,
+          return;
+        }
 
-      degrees1:
-        `${lat.degrees} °`,
+        /*
+         * Generate DMS only for the output fields.
+         * The decimal values remain full precision.
+         */
+        const lat = decimalToDMS(latitude, "N", "S");
 
-      minsec1:
-        `${lat.minutes}' ${lat.seconds}"`,
+        const lon = decimalToDMS(longitude, "E", "W");
 
+        const value = {
+          query: $("query").value,
 
-      direction2:
-        lon.direction,
+          /*
+           * Authoritative coordinates.
+           */
+          latitude: latitude,
 
-      degrees2:
-        `${lon.degrees} °`,
+          longitude: longitude,
 
-      minsec2:
-        `${lon.minutes}' ${lon.seconds}"`,
+          /*
+           * DMS representation.
+           */
+          direction1: lat.direction,
 
+          degrees1: `${lat.degrees} °`,
 
-      _previewText:
-        `${formatCoordinate(latitude, "N", "S")}, ` +
-        `${formatCoordinate(longitude, "E", "W")}`
-    };
+          minsec1: `${lat.minutes}' ${lat.seconds}"`,
 
+          direction2: lon.direction,
 
-    $("save").disabled = true;
-    $("status").textContent = "Rendering preview...";
+          degrees2: `${lon.degrees} °`,
 
-    const previewImage = await renderPreviewImage(latitude, longitude);
-    if (previewImage) value._previewImage = previewImage;
+          minsec2: `${lon.minutes}' ${lon.seconds}"`,
 
-    $("save").disabled = false;
+          _previewText:
+            `${formatCoordinate(latitude, "N", "S")}, ` +
+            `${formatCoordinate(longitude, "E", "W")}`,
+        };
 
-    cuttle.setValueAndClose(value);
-  };
+        $("save").disabled = true;
+        $("preview").setAttribute("aria-busy", "true");
+        $("status").textContent = "Rendering preview...";
 
-</script>
+        const previewImage = await renderPreviewImage(latitude, longitude);
+        if (previewImage) value._previewImage = previewImage;
 
-</body>
+        $("save").disabled = false;
+        $("preview").removeAttribute("aria-busy");
+
+        cuttle.setValueAndClose(value);
+      };
+    </script>
+  </body>
 </html>
