@@ -89,9 +89,12 @@
         display: grid;
         gap: 12px;
       }
-      .panel {
+      .panel,
+      details > div {
         display: grid;
         gap: 8px;
+      }
+      .panel {
         background: var(--panel);
         border-radius: 10px;
         padding: 12px;
@@ -202,6 +205,20 @@
       }
       .seg label:has(:focus-visible) {
         outline: 2px solid var(--blue);
+      }
+
+      summary {
+        background: var(--field);
+        border-radius: 6px;
+        padding: 4px 8px;
+        font-weight: 600;
+        color: var(--ink2);
+        cursor: pointer;
+      }
+      details > div {
+        margin: 8px 0 0 4px;
+        padding-left: 12px;
+        border-left: 2px solid var(--line);
       }
 
       .note {
@@ -335,11 +352,12 @@
               <label><input type="radio" name="detail" value="high" />High</label>
             </span>
           </div>
-        </div>
 
-        <div id="layers" class="panel">
-          <h3>Layers</h3>
-          <!-- One row per category, built from CATEGORIES. -->
+          <details id="layers">
+            <summary>Layers</summary>
+            <!-- One row per category, built from CATEGORIES. -->
+            <div id="layerRows"></div>
+          </details>
           <p id="status" class="note" aria-live="polite"></p>
         </div>
 
@@ -1336,7 +1354,7 @@ ${paths.join("\n")}
         }
         select.addEventListener("change", scheduleRender);
         row.append(category.label, select);
-        $("status").before(row);
+        $("layerRows").append(row);
       }
 
       const layerSelect = (id) => $("form").elements[`layer-${id}`];
