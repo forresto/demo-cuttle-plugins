@@ -23,8 +23,8 @@ The examples are intended to be useful as both **working plugins** and **recipes
 Plugins use the Cuttle Customizer Plugin SDK:
 
 ```html
-<!-- ⚠️ URL will change before launch. -->
-<script src="https://cuttle.xyz/editor/customizer/v1.js"></script>
+<!-- ⚠️ URL might change before launch. -->
+<script src="https://cuttle.xyz/parameter-plugin/v1.js"></script>
 ```
 
 The basic lifecycle is:

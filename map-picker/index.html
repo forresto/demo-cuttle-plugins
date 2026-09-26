@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width" />
     <title>Map Picker</title>
 
-    <script src="https://cuttle.xyz/editor/customizer/v1.js"></script>
+    <script src="https://cuttle.xyz/parameter-plugin/v1.js"></script>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
@@ -357,9 +357,21 @@
           <div class="row">
             <span>Detail</span>
             <span class="seg">
-              <label><input type="radio" name="detail" value="light" autocomplete="off" />Light</label>
-              <label><input type="radio" name="detail" value="medium" checked autocomplete="off" />Medium</label>
-              <label><input type="radio" name="detail" value="high" autocomplete="off" />High</label>
+              <label
+                ><input type="radio" name="detail" value="light" autocomplete="off" />Light</label
+              >
+              <label
+                ><input
+                  type="radio"
+                  name="detail"
+                  value="medium"
+                  checked
+                  autocomplete="off"
+                />Medium</label
+              >
+              <label
+                ><input type="radio" name="detail" value="high" autocomplete="off" />High</label
+              >
             </span>
           </div>
 
@@ -381,8 +393,7 @@
       import * as Clipper2 from "https://cdn.jsdelivr.net/npm/clipper2-ts@2.0.1-18/+esm";
 
       const $ = (id) => document.getElementById(id);
-      const detailRadio = (selector) =>
-        document.querySelector(`input[name="detail"]${selector}`);
+      const detailRadio = (selector) => document.querySelector(`input[name="detail"]${selector}`);
 
       // The template decides the output size; geometry is simplified as if the
       // longer side were this many millimeters, and the SVG is in those units.
