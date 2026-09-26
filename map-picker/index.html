@@ -330,8 +330,8 @@
           <div class="row">
             <span>Detail</span>
             <span class="seg">
-              <label><input type="radio" name="detail" value="light" checked />Light</label>
-              <label><input type="radio" name="detail" value="medium" />Medium</label>
+              <label><input type="radio" name="detail" value="light" />Light</label>
+              <label><input type="radio" name="detail" value="medium" checked />Medium</label>
               <label><input type="radio" name="detail" value="high" />High</label>
             </span>
           </div>
@@ -349,8 +349,8 @@
       </form>
     </div>
 
-    <script>
-      "use strict";
+    <script type="module">
+      import * as Clipper2 from "https://cdn.jsdelivr.net/npm/clipper2-ts@2.0.1-18/+esm";
 
       const $ = (id) => document.getElementById(id);
 
@@ -375,14 +375,13 @@
       // Listed in panel order. `width` is the engrave line width in millimeters,
       // `limit` caps the count after decluttering (buildings use the detail setting).
       const CATEGORIES = [
-        { id: "majorRoads", label: "Major roads", op: "engrave", width: 0.4, limit: 150 },
+        { id: "majorRoads", label: "Major roads", op: "score", width: 0.4, limit: 150 },
         { id: "minorRoads", label: "Local roads", op: "score", width: 0.3, limit: 650 },
         { id: "paths", label: "Paths", op: "off", width: 0.2, limit: 650 },
-        { id: "railways", label: "Railways", op: "off", width: 0.3, limit: 150 },
+        { id: "railways", label: "Railways", op: "score", width: 0.3, limit: 150 },
         { id: "water", label: "Water", area: true, op: "engrave", width: 0.3, limit: 250 },
-        // Off by default: large rivers are also water areas, so the centerline
-        // would run down the middle of them.
-        { id: "waterways", label: "Rivers & streams", op: "off", width: 0.3, limit: 250 },
+        // Centerlines stop at the shore of water areas, unless Water is off.
+        { id: "waterways", label: "Rivers & streams", op: "score", width: 0.3, limit: 250 },
         { id: "buildings", label: "Buildings", area: true, op: "score", width: 0.2 },
         { id: "parks", label: "Parks & woods", area: true, op: "off", width: 0.2, limit: 250 },
         { id: "border", label: "Border", op: "cut", width: 0.2 },
@@ -772,10 +771,9 @@
       }
 
       /*
-       * Decode a Mapbox Vector Tile into { category, points, ring?, bounds? }
-       * elements, with points in normalized world coordinates. Area rings are
-       * kept whole, tile seams included; `bounds` is the tile in world
-       * coordinates so outlines can drop the seams later.
+       * Decode a Mapbox Vector Tile into { category, points, ring? } elements,
+       * with points in normalized world coordinates. Area rings are kept whole,
+       * tile seams and buffer included, so neighboring pieces merge later.
        */
       function decodeVectorTile(bytes, tile, zoom, includeBuildings) {
         const reader = new ProtoReader(bytes);
@@ -794,7 +792,6 @@
             (tile.x + x / layer.extent) / n,
             (tile.y + y / layer.extent) / n,
           ];
-          const bounds = [...toWorld([0, 0]), ...toWorld([layer.extent, layer.extent])];
           for (const feature of layer.features) {
             const { kind, tunnel } = feature.properties;
             let category = null;
@@ -812,40 +809,13 @@
             for (const path of decodeMvtGeometry(feature.geometry)) {
               if (path.length < 2) continue;
               const element = { category, points: path.map(toWorld) };
-              if (feature.type === 3) Object.assign(element, { ring: true, bounds });
+              if (feature.type === 3) element.ring = true;
               else if (kind === "service") element.minimumLength = 3;
               elements.push(element);
             }
           }
         }
         return elements;
-      }
-
-      /*
-       * Split a ring into open edges, dropping the edges that run along the
-       * tile border (bounds in the ring's coordinates, or beyond it in the buffer).
-       */
-      function edgesWithoutTileBorders(path, [minX, minY, maxX, maxY]) {
-        const isTileBorder = (start, end) =>
-          (start[0] <= minX && end[0] <= minX) ||
-          (start[0] >= maxX && end[0] >= maxX) ||
-          (start[1] <= minY && end[1] <= minY) ||
-          (start[1] >= maxY && end[1] >= maxY);
-        const edges = [];
-        let current = [];
-        for (let index = 0; index < path.length - 1; index++) {
-          const start = path[index];
-          const end = path[index + 1];
-          if (isTileBorder(start, end)) {
-            if (current.length > 1) edges.push(current);
-            current = [];
-            continue;
-          }
-          if (!current.length) current = [start, end];
-          else current.push(end);
-        }
-        if (current.length > 1) edges.push(current);
-        return edges;
       }
 
       class ProtoReader {
@@ -1039,64 +1009,99 @@
         // Building outlines stay grouped per building until they are decluttered.
         const buildings = [];
 
-        const project = ([x, y]) => [(x - view.cx) * scale, (y - view.cy) * scale];
-        const inFrame = ([x, y]) => Math.abs(x) <= xLimit && Math.abs(y) <= yLimit;
-        const addLines = (target, points, tolerance, minimumLength) => {
-          for (let part of clipPolyline(points, xLimit, yLimit)) {
-            part = simplify(part, tolerance);
-            if (part.length >= 2 && polylineLength(part) >= minimumLength) {
-              target.push(roundPoints(part));
+        const project = ([x, y]) => ({ x: (x - view.cx) * scale, y: (y - view.cy) * scale });
+        const frameRect = { left: -xLimit, top: -yLimit, right: xLimit, bottom: yLimit };
+        const inFrame = ({ x, y }) => Math.abs(x) <= xLimit && Math.abs(y) <= yLimit;
+        const addLines = (target, paths, tolerance, minimumLength) => {
+          for (const path of paths) {
+            const points = fromPathD(Clipper2.ramerDouglasPeuckerD(path, tolerance));
+            if (points.length >= 2 && polylineLength(points) >= minimumLength) {
+              target.push(roundPoints(points));
             }
           }
         };
-        const clippedPolygon = (ring) => {
-          const points = ring.map(project);
-          if (distance(points[0], points.at(-1)) < 1e-6) points.pop();
-          const polygon = simplifyPolygon(
-            clipPolygon(points, xLimit, yLimit),
-            settings.polygonTolerance,
+        // Shapes fully in the frame stay closed; the rest become open lines
+        // with no edges along the frame.
+        const addOutline = (target, path, tolerance, minimumLength) => {
+          if (path.every(inFrame)) {
+            const ring = Clipper2.simplifyPathD(path, tolerance, true);
+            if (ring.length >= 3) target.rings.push(roundPoints(fromPathD(ring)));
+            return;
+          }
+          // Start outside the frame, so no visible piece is split at the start.
+          const start = path.findIndex((point) => !inFrame(point));
+          const open = [...path.slice(start), ...path.slice(0, start + 1)];
+          addLines(
+            target.lines,
+            Clipper2.rectClipLines(frameRect, open, PRECISION),
+            tolerance,
+            minimumLength,
           );
-          return { points: polygon, area: polygon.length >= 3 ? polygonArea(polygon) : 0 };
         };
 
+        // Area rings per category, and lines per category and minimum length.
+        const areaRings = { water: [], parks: [], buildings: [] };
+        const lineGroups = new Map();
         for (const element of data.elements) {
-          const op = ops[element.category];
-          if (op === "off") continue;
-          const target = categories[element.category];
-          if (!element.ring) {
-            addLines(
-              target.lines,
-              element.points.map(project),
-              settings.roadTolerance,
-              element.minimumLength ?? 1,
-            );
-          } else if (op === "fill") {
-            // Whole rings, closed along the frame: they bound the filled region.
-            // Holes keep their opposite winding, so the nonzero rule leaves them open.
-            const polygon = clippedPolygon(element.points);
-            if (polygon.area >= settings.minArea) {
-              target.fills.push({ points: roundPoints(polygon.points), area: polygon.area });
-            }
-          } else if (element.category === "buildings") {
-            const polygon = clippedPolygon(element.points);
-            if (polygon.area < settings.minArea) continue;
-            const edges = edgesWithoutTileBorders(element.points, element.bounds);
-            const whole = edges.length === 1 && edges[0].length === element.points.length;
-            const building = { ...polygon, lines: [], rings: [] };
-            if (whole && element.points.map(project).every(inFrame)) {
-              building.rings.push(roundPoints(polygon.points));
-            } else {
-              for (const edge of edges) {
-                addLines(building.lines, edge.map(project), settings.polygonTolerance, 0);
+          if (ops[element.category] === "off") continue;
+          const path = element.points.map(project);
+          if (element.ring) {
+            if (path.length >= 3) areaRings[element.category].push(path);
+            continue;
+          }
+          const minimumLength = element.minimumLength ?? 1;
+          const key = `${element.category} ${minimumLength}`;
+          if (!lineGroups.has(key)) {
+            lineGroups.set(key, { category: element.category, minimumLength, paths: [] });
+          }
+          lineGroups.get(key).paths.push(path);
+        }
+
+        let waterUnion = [];
+        for (const [id, rings] of Object.entries(areaRings)) {
+          if (!rings.length) continue;
+          // Tile pieces, seams and buffers included, merge into whole shapes.
+          // Holes keep their opposite winding, so the nonzero rule leaves them open.
+          const merged = Clipper2.unionD(rings, [], Clipper2.FillRule.NonZero, PRECISION);
+          if (id === "water") waterUnion = merged;
+          const target = categories[id];
+          if (ops[id] === "fill") {
+            // Closed along the frame: those edges bound the filled region.
+            for (const path of Clipper2.rectClip(frameRect, merged, PRECISION)) {
+              const points = Clipper2.simplifyPathD(path, settings.polygonTolerance, true);
+              const area = Math.abs(Clipper2.areaD(points));
+              if (points.length >= 3 && area >= settings.minArea) {
+                target.fills.push({ points: roundPoints(fromPathD(points)), area });
               }
             }
-            buildings.push(building);
-          } else {
-            // Open outlines: no edges along tile seams or the frame.
-            for (const edge of edgesWithoutTileBorders(element.points, element.bounds)) {
-              addLines(target.lines, edge.map(project), settings.roadTolerance, 1);
+          } else if (id === "buildings") {
+            for (const path of merged) {
+              const visible = path.every(inFrame)
+                ? [path]
+                : Clipper2.rectClip(frameRect, path, PRECISION);
+              const area = visible.reduce((sum, part) => sum + Math.abs(Clipper2.areaD(part)), 0);
+              if (area < settings.minArea) continue;
+              const building = { points: visible.flatMap(fromPathD), area, lines: [], rings: [] };
+              addOutline(building, path, settings.polygonTolerance, 0);
+              buildings.push(building);
             }
+          } else {
+            for (const path of merged) addOutline(target, path, settings.roadTolerance, 1);
           }
+        }
+
+        for (const { category, minimumLength, paths } of lineGroups.values()) {
+          let clipped = Clipper2.rectClipLines(frameRect, paths, PRECISION);
+          if (category === "waterways" && waterUnion.length) {
+            // Streams stop at the shore instead of running down the middle of
+            // rivers and lakes. With Water off, the centerline is all there is.
+            const clipper = new Clipper2.ClipperD(PRECISION);
+            clipper.addOpenSubjectPaths(clipped);
+            clipper.addClipPaths(waterUnion);
+            clipped = [];
+            clipper.execute(Clipper2.ClipType.Difference, Clipper2.FillRule.NonZero, [], clipped);
+          }
+          addLines(categories[category].lines, clipped, settings.roadTolerance, minimumLength);
         }
 
         let limited = false;
@@ -1199,145 +1204,15 @@ ${paths.join("\n")}
 </svg>`;
       }
 
-      function clipSegment(a, b, xLimit, yLimit) {
-        const [x0, y0] = a;
-        const [x1, y1] = b;
-        const dx = x1 - x0;
-        const dy = y1 - y0;
-        const p = [-dx, dx, -dy, dy];
-        const q = [x0 + xLimit, xLimit - x0, y0 + yLimit, yLimit - y0];
-        let u0 = 0;
-        let u1 = 1;
-        for (let i = 0; i < 4; i++) {
-          if (Math.abs(p[i]) < 1e-12) {
-            if (q[i] < 0) return null;
-            continue;
-          }
-          const t = q[i] / p[i];
-          if (p[i] < 0) u0 = Math.max(u0, t);
-          else u1 = Math.min(u1, t);
-          if (u0 > u1) return null;
-        }
-        return [
-          [x0 + u0 * dx, y0 + u0 * dy],
-          [x0 + u1 * dx, y0 + u1 * dy],
-        ];
-      }
+      // Clipper2 works on { x, y } points, rounded to this many decimals (millimeters).
+      const PRECISION = 3;
 
-      function clipPolyline(points, xLimit, yLimit) {
-        const parts = [];
-        let current = [];
-        for (let i = 0; i < points.length - 1; i++) {
-          const segment = clipSegment(points[i], points[i + 1], xLimit, yLimit);
-          if (!segment) {
-            if (current.length > 1) parts.push(current);
-            current = [];
-            continue;
-          }
-          const [start, end] = segment;
-          if (current.length && distance(current.at(-1), start) < 1e-6) current.push(end);
-          else {
-            if (current.length > 1) parts.push(current);
-            current = [start, end];
-          }
-        }
-        if (current.length > 1) parts.push(current);
-        return parts;
-      }
-
-      function clipPolygon(points, xLimit, yLimit) {
-        const clipEdge = (polygon, inside, intersect) => {
-          if (!polygon.length) return [];
-          const result = [];
-          let previous = polygon.at(-1);
-          let previousInside = inside(previous);
-          for (const current of polygon) {
-            const currentInside = inside(current);
-            if (currentInside) {
-              if (!previousInside) result.push(intersect(previous, current));
-              result.push(current);
-            } else if (previousInside) {
-              result.push(intersect(previous, current));
-            }
-            previous = current;
-            previousInside = currentInside;
-          }
-          return result;
-        };
-        const vertical = (bound) => (a, b) => {
-          const t = (bound - a[0]) / (b[0] - a[0]);
-          return [bound, a[1] + t * (b[1] - a[1])];
-        };
-        const horizontal = (bound) => (a, b) => {
-          const t = (bound - a[1]) / (b[1] - a[1]);
-          return [a[0] + t * (b[0] - a[0]), bound];
-        };
-        let clipped = points;
-        clipped = clipEdge(clipped, (p) => p[0] >= -xLimit, vertical(-xLimit));
-        clipped = clipEdge(clipped, (p) => p[0] <= xLimit, vertical(xLimit));
-        clipped = clipEdge(clipped, (p) => p[1] >= -yLimit, horizontal(-yLimit));
-        return clipEdge(clipped, (p) => p[1] <= yLimit, horizontal(yLimit));
-      }
-
-      function simplify(points, tolerance) {
-        if (points.length <= 2) return points;
-        let maxDistance = 0;
-        let index = 0;
-        for (let i = 1; i < points.length - 1; i++) {
-          const candidate = pointLineDistance(points[i], points[0], points.at(-1));
-          if (candidate > maxDistance) {
-            maxDistance = candidate;
-            index = i;
-          }
-        }
-        if (maxDistance <= tolerance) return [points[0], points.at(-1)];
-        const left = simplify(points.slice(0, index + 1), tolerance);
-        const right = simplify(points.slice(index), tolerance);
-        return left.slice(0, -1).concat(right);
-      }
-
-      function simplifyPolygon(points, tolerance) {
-        if (points.length < 4) return points;
-        const deduped = [points[0]];
-        for (const point of points.slice(1)) {
-          if (distance(point, deduped.at(-1)) >= tolerance) deduped.push(point);
-        }
-        if (deduped.length > 2 && distance(deduped[0], deduped.at(-1)) < tolerance) deduped.pop();
-        if (deduped.length < 3) return [];
-        let corner = 0;
-        for (let i = 1; i < deduped.length; i++) {
-          if (
-            deduped[i][0] < deduped[corner][0] ||
-            (deduped[i][0] === deduped[corner][0] && deduped[i][1] < deduped[corner][1])
-          ) {
-            corner = i;
-          }
-        }
-        const rotated = deduped.slice(corner).concat(deduped.slice(0, corner), [deduped[corner]]);
-        return simplify(rotated, tolerance).slice(0, -1);
-      }
-
-      function pointLineDistance(point, start, end) {
-        const dx = end[0] - start[0];
-        const dy = end[1] - start[1];
-        if (dx === 0 && dy === 0) return distance(point, start);
-        let t = ((point[0] - start[0]) * dx + (point[1] - start[1]) * dy) / (dx * dx + dy * dy);
-        t = Math.max(0, Math.min(1, t));
-        return distance(point, [start[0] + t * dx, start[1] + t * dy]);
+      function fromPathD(path) {
+        return path.map(({ x, y }) => [x, y]);
       }
 
       function distance(a, b) {
         return Math.hypot(a[0] - b[0], a[1] - b[1]);
-      }
-
-      function polygonArea(points) {
-        if (points.length < 3) return 0;
-        let twiceArea = 0;
-        for (let i = 0; i < points.length; i++) {
-          const next = points[(i + 1) % points.length];
-          twiceArea += points[i][0] * next[1] - next[0] * points[i][1];
-        }
-        return Math.abs(twiceArea) / 2;
       }
 
       function polylineLength(points) {
