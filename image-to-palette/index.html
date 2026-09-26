@@ -87,7 +87,7 @@
         opacity: 0.6;
       }
 
-      form {
+      .controls {
         display: grid;
         gap: 12px;
       }
@@ -241,7 +241,7 @@
         <p class="empty" id="empty">Choose an image to extract its colors.</p>
       </div>
 
-      <form id="form" method="post" enctype="multipart/form-data">
+      <div class="controls">
         <div class="panel">
           <h3>Source</h3>
           <label class="drop"
@@ -263,7 +263,7 @@
           <small id="palette-help">Colors appear here after you choose an image.</small>
         </div>
 
-        <button id="save" type="submit" class="primary" disabled>Save</button>
+        <button id="save" type="button" class="primary" disabled>Save</button>
         <small>
           Based on
           <a href="http://gfx.cs.princeton.edu/pubs/Chang_2015_PPR/chang2015-palette_small.pdf"
@@ -273,7 +273,7 @@
             >Art Palette</a
           >.
         </small>
-      </form>
+      </div>
     </div>
     <canvas id="canvas" hidden></canvas>
 
@@ -523,7 +523,6 @@
       PaletteExtractor.REF_Y = 100;
       PaletteExtractor.REF_Z = 108.883;
 
-      const form = document.getElementById("form");
       const imageInput = document.getElementById("image");
       const countInput = document.getElementById("count");
       const previewElement = document.getElementById("preview");
@@ -650,8 +649,7 @@
 
       countInput.addEventListener("change", extractPalette);
 
-      form.addEventListener("submit", (event) => {
-        event.preventDefault();
+      saveButton.addEventListener("click", () => {
         if (!colors.length) return;
         const value = {
           count: colors.length,

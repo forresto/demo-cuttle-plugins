@@ -8,11 +8,11 @@ The examples are intended to be useful as both **working plugins** and **recipes
 
 ## Live examples
 
-| Example                                   | Description                                                                                           | Live                                                                       |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| [OSM Place Picker](./coordinates-picker/) | Search OpenStreetMap, choose a place, then fine-tune its coordinates with a draggable Leaflet marker. | [Open](https://forresto.github.io/demo-cuttle-plugins/coordinates-picker/) |
-| [Image to Palette](./image-to-palette/)   | Choose an image and extract a palette of colors for use as a Cuttle parameter.                        | [Open](https://forresto.github.io/demo-cuttle-plugins/image-to-palette/)   |
-| [Map Picker](./map-picker/)               | Frame an OpenStreetMap area and save it as laser-ready SVG vectors.                                   | [Open](https://forresto.github.io/demo-cuttle-plugins/map-picker/)         |
+| Example                                     | Description                                                                                   | Live                                                                                 |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [Coordinates Picker](./coordinates-picker/) | Search OpenStreetMap, choose a place, then fine-tune its coordinates with a draggable marker. | [Open](https://forresto.github.io/demo-cuttle-plugins/coordinates-picker/index.html) |
+| [Image to Palette](./image-to-palette/)     | Choose an image and extract a palette of colors for use as a Cuttle parameter.                | [Open](https://forresto.github.io/demo-cuttle-plugins/image-to-palette/index.html)   |
+| [Map Picker](./map-picker/)                 | Frame an OpenStreetMap area and save it as laser-ready SVG vectors.                           | [Open](https://forresto.github.io/demo-cuttle-plugins/map-picker/index.html)         |
 
 ## Design system
 

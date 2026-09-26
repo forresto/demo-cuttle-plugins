@@ -85,7 +85,7 @@
         }
       }
 
-      form {
+      .controls {
         display: grid;
         gap: 12px;
       }
@@ -214,7 +214,7 @@
         <p id="empty" class="empty">Search for a place to show the map.</p>
       </div>
 
-      <form id="form">
+      <div class="controls">
         <div class="panel">
           <h3>Location</h3>
 
@@ -247,10 +247,10 @@
           </div>
         </div>
 
-        <button id="save" type="submit" class="primary">Save</button>
+        <button id="save" type="button" class="primary">Save</button>
 
         <small>Map © OpenStreetMap contributors · Leaflet</small>
-      </form>
+      </div>
     </div>
 
     <script>
@@ -443,7 +443,6 @@
           for (const place of places) {
             const button = document.createElement("button");
 
-            // Inside the form, so it must not submit.
             button.type = "button";
 
             button.className = "result";
@@ -619,9 +618,7 @@
       /*
        * Save.
        */
-      $("form").onsubmit = async (event) => {
-        event.preventDefault();
-
+      $("save").onclick = async () => {
         if (latitude === null || longitude === null) {
           $("status").classList.add("error");
 

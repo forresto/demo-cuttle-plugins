@@ -85,7 +85,7 @@
         }
       }
 
-      form {
+      .controls {
         display: grid;
         gap: 12px;
       }
@@ -281,8 +281,8 @@
         <p id="empty" class="empty">Search for a place to show the map.</p>
       </div>
 
-      <!-- autocomplete off so a reload does not restore stale control state. -->
-      <form id="form" novalidate autocomplete="off">
+      <!-- autocomplete off on each control so a reload does not restore stale state. -->
+      <div class="controls">
         <div class="panel">
           <h3>Location</h3>
 
@@ -306,8 +306,16 @@
           <label class="row"
             >Area width
             <span class="pair">
-              <input id="area" name="area" type="number" value="2" min="0" step="any" />
-              <select id="areaUnit" name="areaUnit" aria-label="Area unit">
+              <input
+                id="area"
+                name="area"
+                type="number"
+                value="2"
+                min="0"
+                step="any"
+                autocomplete="off"
+              />
+              <select id="areaUnit" name="areaUnit" aria-label="Area unit" autocomplete="off">
                 <option selected>mi</option>
                 <option>km</option>
               </select>
@@ -330,6 +338,7 @@
                 min="0"
                 step="any"
                 aria-label="Aspect width"
+                autocomplete="off"
               />
               <span class="times">:</span>
               <input
@@ -340,6 +349,7 @@
                 min="0"
                 step="any"
                 aria-label="Aspect height"
+                autocomplete="off"
               />
             </span>
           </div>
@@ -347,9 +357,9 @@
           <div class="row">
             <span>Detail</span>
             <span class="seg">
-              <label><input type="radio" name="detail" value="light" />Light</label>
-              <label><input type="radio" name="detail" value="medium" checked />Medium</label>
-              <label><input type="radio" name="detail" value="high" />High</label>
+              <label><input type="radio" name="detail" value="light" autocomplete="off" />Light</label>
+              <label><input type="radio" name="detail" value="medium" checked autocomplete="off" />Medium</label>
+              <label><input type="radio" name="detail" value="high" autocomplete="off" />High</label>
             </span>
           </div>
 
@@ -361,16 +371,18 @@
           <p id="status" class="note" aria-live="polite"></p>
         </div>
 
-        <button id="save" type="submit" class="primary" disabled>Save</button>
+        <button id="save" type="button" class="primary" disabled>Save</button>
 
         <small>Map data © OpenStreetMap contributors, ODbL · Leaflet</small>
-      </form>
+      </div>
     </div>
 
     <script type="module">
       import * as Clipper2 from "https://cdn.jsdelivr.net/npm/clipper2-ts@2.0.1-18/+esm";
 
       const $ = (id) => document.getElementById(id);
+      const detailRadio = (selector) =>
+        document.querySelector(`input[name="detail"]${selector}`);
 
       // The template decides the output size; geometry is simplified as if the
       // longer side were this many millimeters, and the SVG is in those units.
@@ -601,7 +613,7 @@
           return;
         }
 
-        const detail = $("form").elements.detail.value;
+        const detail = detailRadio(":checked").value;
         const ops = readOps();
 
         setStatus("Loading map data...");
@@ -677,7 +689,6 @@
 
           for (const place of places) {
             const button = document.createElement("button");
-            // Inside the form, so it must not submit.
             button.type = "button";
             button.textContent = place.display_name;
             button.onclick = () => {
@@ -1339,7 +1350,7 @@ ${paths.join("\n")}
       // Only the display changes; the framed area stays the same.
       $("areaUnit").addEventListener("change", updateAreaField);
 
-      for (const radio of $("form").elements.detail) {
+      for (const radio of document.querySelectorAll('input[name="detail"]')) {
         radio.addEventListener("change", scheduleRender);
       }
 
@@ -1348,7 +1359,8 @@ ${paths.join("\n")}
         const row = document.createElement("label");
         row.className = "row";
         const select = document.createElement("select");
-        select.name = `layer-${category.id}`;
+        select.id = `layer-${category.id}`;
+        select.autocomplete = "off";
         for (const op of allowedOps(category)) {
           select.add(new Option(OPERATIONS[op].label, op, false, op === category.op));
         }
@@ -1357,7 +1369,7 @@ ${paths.join("\n")}
         $("layerRows").append(row);
       }
 
-      const layerSelect = (id) => $("form").elements[`layer-${id}`];
+      const layerSelect = (id) => $(`layer-${id}`);
 
       function readOps() {
         return Object.fromEntries(CATEGORIES.map(({ id }) => [id, layerSelect(id).value]));
@@ -1367,8 +1379,7 @@ ${paths.join("\n")}
        * Save the framing and the rendered vectors. Cuttle imports the SVG from
        * _previewImage; the rest restores the plugin next time.
        */
-      $("form").addEventListener("submit", (event) => {
-        event.preventDefault();
+      $("save").addEventListener("click", () => {
         if (!window.cuttle || !map || !svgUrl) return;
         const view = currentView();
         cuttle.setValueAndClose({
@@ -1379,7 +1390,7 @@ ${paths.join("\n")}
           areaWidthKm: view.widthKm,
           areaDisplayUnit: $("areaUnit").value,
           aspect: [Number($("width").value), Number($("height").value)],
-          detail: $("form").elements.detail.value,
+          detail: detailRadio(":checked").value,
           layers: readOps(),
           _previewText: placeName || `${view.lat.toFixed(4)}, ${view.lon.toFixed(4)}`,
           _previewImage: svgUrl,
@@ -1406,7 +1417,7 @@ ${paths.join("\n")}
             $("height").value = aspectHeight;
           }
           if (["light", "medium", "high"].includes(value.detail)) {
-            $("form").elements.detail.value = value.detail;
+            detailRadio(`[value="${value.detail}"]`).checked = true;
           }
           // Values saved before layers existed keep the defaults.
           for (const category of CATEGORIES) {
