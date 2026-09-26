@@ -517,99 +517,6 @@
       });
 
       /*
-       * Render a static 4:3 OpenStreetMap image centered on the marker by
-       * stitching tiles onto a canvas. Returns a JPEG data URL, or undefined if
-       * any tile fails to load.
-       */
-      async function renderPreviewImage(lat, lon) {
-        const width = 320;
-        const height = 240;
-        const zoom = 16;
-        const tileSize = 256;
-        const worldSize = tileSize * 2 ** zoom;
-
-        const latRadians = (lat * Math.PI) / 180;
-
-        const centerX = ((lon + 180) / 360) * worldSize;
-
-        const centerY =
-          ((1 - Math.log(Math.tan(latRadians) + 1 / Math.cos(latRadians)) / Math.PI) / 2) *
-          worldSize;
-
-        const left = centerX - width / 2;
-        const top = centerY - height / 2;
-
-        const tileCount = 2 ** zoom;
-
-        const loadTile = (x, y) =>
-          new Promise((resolve, reject) => {
-            const image = new Image();
-            image.crossOrigin = "anonymous";
-            image.onload = () => resolve(image);
-            image.onerror = reject;
-            image.src = `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
-          });
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const context = canvas.getContext("2d");
-
-        const tileRequests = [];
-
-        for (
-          let tileY = Math.floor(top / tileSize);
-          tileY <= Math.floor((top + height) / tileSize);
-          tileY++
-        ) {
-          for (
-            let tileX = Math.floor(left / tileSize);
-            tileX <= Math.floor((left + width) / tileSize);
-            tileX++
-          ) {
-            // Wrap horizontally across the antimeridian; skip beyond the poles.
-            const wrappedX = ((tileX % tileCount) + tileCount) % tileCount;
-            if (tileY < 0 || tileY >= tileCount) continue;
-
-            tileRequests.push(
-              loadTile(wrappedX, tileY).then((image) => {
-                context.drawImage(image, tileX * tileSize - left, tileY * tileSize - top);
-              }),
-            );
-          }
-        }
-
-        try {
-          await Promise.all(tileRequests);
-        } catch (error) {
-          console.error(error);
-          return undefined;
-        }
-
-        // Marker.
-        const markerX = width / 2;
-        const markerY = height / 2;
-        context.beginPath();
-        context.arc(markerX, markerY, 8, 0, Math.PI * 2);
-        context.fillStyle = "#e53935";
-        context.fill();
-        context.lineWidth = 3;
-        context.strokeStyle = "white";
-        context.stroke();
-
-        // Attribution.
-        const attribution = "© OpenStreetMap contributors";
-        context.font = "10px system-ui, sans-serif";
-        const attributionWidth = context.measureText(attribution).width + 8;
-        context.fillStyle = "rgba(255, 255, 255, 0.8)";
-        context.fillRect(width - attributionWidth, height - 14, attributionWidth, 14);
-        context.fillStyle = "#333";
-        context.fillText(attribution, width - attributionWidth + 4, height - 4);
-
-        return canvas.toDataURL("image/jpeg", 0.8);
-      }
-
-      /*
        * Save.
        */
       $("save").onclick = async () => {
@@ -654,20 +561,8 @@
 
           minsec2: `${lon.minutes}' ${lon.seconds}"`,
 
-          _previewText:
-            `${formatCoordinate(latitude, "N", "S")}, ` +
-            `${formatCoordinate(longitude, "E", "W")}`,
+          _previewText: `${formatCoordinate(latitude, "N", "S")}, ${formatCoordinate(longitude, "E", "W")}`,
         };
-
-        $("save").disabled = true;
-        $("preview").setAttribute("aria-busy", "true");
-        $("status").textContent = "Rendering preview...";
-
-        const previewImage = await renderPreviewImage(latitude, longitude);
-        if (previewImage) value._previewImage = previewImage;
-
-        $("save").disabled = false;
-        $("preview").removeAttribute("aria-busy");
 
         cuttle.setValueAndClose(value);
       };
