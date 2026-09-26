@@ -52,26 +52,6 @@ The repository is published with [GitHub Pages](https://docs.github.com/en/pages
 
 Static plugin files can therefore be used directly as HTTPS Cuttle Input Plugin URLs.
 
-## Repository layout
-
-```
-/
-├── README.md
-├── LICENSE
-├── coordinates-picker/
-│   ├── index.html
-│   └── README.md
-├── image-to-palette/
-│   ├── index.html
-│   └── README.md
-├── map-picker/
-│   ├── index.html
-│   └── README.md
-└── design-system/
-    ├── cuttle-plugin-design-system.html
-    └── index.html
-```
-
 ## Using this repository with AI
 
 Give a coding agent or AI assistant this repository URL:
