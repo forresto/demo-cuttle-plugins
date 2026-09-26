@@ -281,7 +281,6 @@
         <p id="empty" class="empty">Search for a place to show the map.</p>
       </div>
 
-      <!-- autocomplete off on each control so a reload does not restore stale state. -->
       <div class="controls">
         <div class="panel">
           <h3>Location</h3>
@@ -1343,7 +1342,6 @@ ${paths.join("\n")}
         row.className = "row";
         const select = document.createElement("select");
         select.id = `layer-${category.id}`;
-        select.autocomplete = "off";
         for (const op of allowedOps(category)) {
           select.add(new Option(OPERATIONS[op].label, op, false, op === category.op));
         }
