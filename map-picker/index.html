@@ -289,13 +289,7 @@
           <div class="row">
             <label for="query">Place</label>
             <span class="pair">
-              <input
-                id="query"
-                name="query"
-                type="text"
-                placeholder="Address, city, or ZIP..."
-                autocomplete="off"
-              />
+              <input id="query" name="query" type="text" placeholder="Address, city, or ZIP..." />
               <button id="search" type="button">Search</button>
             </span>
           </div>
@@ -306,16 +300,8 @@
           <label class="row"
             >Area width
             <span class="pair">
-              <input
-                id="area"
-                name="area"
-                type="number"
-                value="2"
-                min="0"
-                step="any"
-                autocomplete="off"
-              />
-              <select id="areaUnit" name="areaUnit" aria-label="Area unit" autocomplete="off">
+              <input id="area" name="area" type="number" value="2" min="0" step="any" />
+              <select id="areaUnit" name="areaUnit" aria-label="Area unit">
                 <option selected>mi</option>
                 <option>km</option>
               </select>
@@ -338,7 +324,6 @@
                 min="0"
                 step="any"
                 aria-label="Aspect width"
-                autocomplete="off"
               />
               <span class="times">:</span>
               <input
@@ -349,7 +334,6 @@
                 min="0"
                 step="any"
                 aria-label="Aspect height"
-                autocomplete="off"
               />
             </span>
           </div>
@@ -357,21 +341,9 @@
           <div class="row">
             <span>Detail</span>
             <span class="seg">
-              <label
-                ><input type="radio" name="detail" value="light" autocomplete="off" />Light</label
-              >
-              <label
-                ><input
-                  type="radio"
-                  name="detail"
-                  value="medium"
-                  checked
-                  autocomplete="off"
-                />Medium</label
-              >
-              <label
-                ><input type="radio" name="detail" value="high" autocomplete="off" />High</label
-              >
+              <label><input type="radio" name="detail" value="light" />Light</label>
+              <label><input type="radio" name="detail" value="medium" checked />Medium</label>
+              <label><input type="radio" name="detail" value="high" />High</label>
             </span>
           </div>
 
