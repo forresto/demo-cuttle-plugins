@@ -37,6 +37,9 @@ https://forresto.github.io/demo-cuttle-plugins/map-picker/
     railways: "off",
     water: "engrave",
     waterways: "score",
+    piers: "off",
+    bridges: "score",
+    ferries: "off",
     buildings: "score",
     parks: "off",
     border: "cut"
@@ -62,17 +65,20 @@ Each layer comes from the Shortbread vector tiles and gets one operation, in Cut
 
 | Layer | Source |
 |---|---|
-| Major roads | `streets` motorway to tertiary, including links |
+| Major roads | `streets` motorway to tertiary, including links, plus airport runways and taxiways |
 | Local roads | `streets` unclassified, residential, living street, service, pedestrian, busway |
 | Paths | `streets` footway, path, cycleway, steps, track |
 | Railways | `streets` rail, tram, light rail, subway, etc., except tunnels |
 | Water | `ocean` and `water_polygons` |
 | Rivers & streams | `water_lines` centerlines, stopped at the shore of water areas (drawn whole when Water is off) |
+| Piers & dams | `pier_lines`, `pier_polygons`, `dam_lines`, `dam_polygons`; cut out of filled Water unless this layer is off |
+| Bridges | `bridges` deck outlines; cut out of filled Water unless this layer is off |
+| Ferries | `ferries` routes |
 | Buildings | `buildings`, only when the area is small enough for zoom 14 tiles |
 | Parks & woods | `land` park, forest, wood, grass, meadow, golf course |
 | Border | the frame rectangle (no fill) |
 
-Runways, taxiways, and unknown street kinds are dropped.
+Unknown street kinds are dropped.
 
 Areas are merged first: the pieces of a lake, park, or building from neighboring tiles become one shape, with holes and islands kept. Then they are drawn differently depending on the operation. A stroke operation draws open outlines with no edges along the frame, so a cropped lake does not repeat the border. Shapes fully inside the frame stay closed. **Engrave fill** clips shapes closed at the frame, since those edges bound the filled region. All rings of a layer go in one path with the nonzero fill rule, so islands and courtyards stay unfilled.
 

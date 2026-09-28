@@ -394,6 +394,10 @@
         { id: "water", label: "Water", area: true, op: "engrave", width: 0.3, limit: 250 },
         // Centerlines stop at the shore of water areas, unless Water is off.
         { id: "waterways", label: "Rivers & streams", op: "score", width: 0.3, limit: 250 },
+        // Piers, dams, and bridges are cut out of Water when it is filled, unless they are off.
+        { id: "piers", label: "Piers & dams", op: "off", width: 0.2, limit: 250 },
+        { id: "bridges", label: "Bridges", op: "score", width: 0.2, limit: 250 },
+        { id: "ferries", label: "Ferries", op: "off", width: 0.2, limit: 50 },
         { id: "buildings", label: "Buildings", area: true, op: "score", width: 0.2 },
         { id: "parks", label: "Parks & woods", area: true, op: "off", width: 0.2, limit: 250 },
         { id: "border", label: "Border", op: "cut", width: 0.2 },
@@ -405,10 +409,10 @@
       const allowedOps = (category) =>
         Object.keys(OPERATIONS).filter((op) => op !== "fill" || category.area);
 
-      // Shortbread `streets` kinds; anything else (runways, unknown kinds) is dropped.
+      // Shortbread `streets` kinds; anything else (unknown kinds) is dropped.
       const STREET_CATEGORY = {};
       for (const [id, kinds] of Object.entries({
-        majorRoads: "motorway trunk primary secondary tertiary",
+        majorRoads: "motorway trunk primary secondary tertiary runway taxiway",
         minorRoads: "unclassified residential living_street service pedestrian busway",
         paths: "track footway steps path cycleway",
         railways: "rail narrow_gauge tram light_rail subway funicular monorail",
@@ -416,6 +420,10 @@
         for (const kind of kinds.split(" ")) STREET_CATEGORY[kind] = id;
       }
       const PARK_KINDS = new Set(["park", "forest", "wood", "grass", "meadow", "golf_course"]);
+      const PIER_LINES = new Set(["pier_lines", "dam_lines"]);
+      const PIER_POLYGONS = new Set(["pier_polygons", "dam_polygons"]);
+      // Half the width, in millimeters, of pier and dam lines cut out of filled water.
+      const PIER_LINE_RADIUS = 0.25;
 
       let map = null;
       let overlay = null;
@@ -809,11 +817,15 @@
             if (feature.type === 2) {
               if (layer.name === "streets") category = STREET_CATEGORY[kind];
               else if (layer.name === "water_lines") category = "waterways";
+              else if (PIER_LINES.has(layer.name)) category = "piers";
+              else if (layer.name === "ferries") category = "ferries";
               // Rail tunnels are mostly subways; they are not on the surface.
               if (category === "railways" && tunnel) category = null;
             } else if (feature.type === 3) {
               if (layer.name === "ocean" || layer.name === "water_polygons") category = "water";
               else if (layer.name === "land" && PARK_KINDS.has(kind)) category = "parks";
+              else if (PIER_POLYGONS.has(layer.name)) category = "piers";
+              else if (layer.name === "bridges") category = "bridges";
               else if (includeBuildings && layer.name === "buildings") category = "buildings";
             }
             if (!category) continue;
@@ -1051,7 +1063,7 @@
         };
 
         // Area rings per category, and lines per category and minimum length.
-        const areaRings = { water: [], parks: [], buildings: [] };
+        const areaRings = { water: [], parks: [], buildings: [], piers: [], bridges: [] };
         const lineGroups = new Map();
         for (const element of data.elements) {
           if (ops[element.category] === "off") continue;
@@ -1068,6 +1080,29 @@
           lineGroups.get(key).paths.push(path);
         }
 
+        // Filled water leaves piers, dams, and bridges that are not off unfilled;
+        // pier and dam lines get a narrow width. Streams still stop at the full shore.
+        let waterCutouts = [];
+        if (ops.water === "fill") {
+          const lines = [...lineGroups.values()]
+            .filter(({ category }) => category === "piers")
+            .flatMap(({ paths }) => paths);
+          const widened = Clipper2.inflatePathsD(
+            lines,
+            PIER_LINE_RADIUS,
+            Clipper2.JoinType.Round,
+            Clipper2.EndType.Round,
+            2,
+            PRECISION,
+          );
+          waterCutouts = Clipper2.unionD(
+            [...areaRings.piers, ...areaRings.bridges],
+            widened,
+            Clipper2.FillRule.NonZero,
+            PRECISION,
+          );
+        }
+
         let waterUnion = [];
         for (const [id, rings] of Object.entries(areaRings)) {
           if (!rings.length) continue;
@@ -1077,8 +1112,12 @@
           if (id === "water") waterUnion = merged;
           const target = categories[id];
           if (ops[id] === "fill") {
+            const filled =
+              id === "water" && waterCutouts.length
+                ? Clipper2.differenceD(merged, waterCutouts, Clipper2.FillRule.NonZero, PRECISION)
+                : merged;
             // Closed along the frame: those edges bound the filled region.
-            for (const path of Clipper2.rectClip(frameRect, merged, PRECISION)) {
+            for (const path of Clipper2.rectClip(frameRect, filled, PRECISION)) {
               const points = Clipper2.simplifyPathD(path, settings.polygonTolerance, true);
               const area = Math.abs(Clipper2.areaD(points));
               if (points.length >= 3 && area >= settings.minArea) {
@@ -1189,6 +1228,9 @@
           "parks",
           "buildings",
           "waterways",
+          "piers",
+          "bridges",
+          "ferries",
           "paths",
           "railways",
           "minorRoads",
