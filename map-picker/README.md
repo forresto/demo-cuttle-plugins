@@ -14,7 +14,7 @@ https://forresto.github.io/demo-cuttle-plugins/map-picker/
 
 1. Search for a place (↓ to move into the results, Enter to choose).
 2. Pan and scroll the Leaflet map to frame the area inside the inset frame.
-3. Set the aspect ratio and detail level, and choose a laser operation for each layer.
+3. Set the physical size (in or mm) and detail level, and choose a laser operation for each layer.
 4. When the map settles, vector tiles are simplified into an SVG drawn over the map in place.
 5. **Save** calls `cuttle.setValueAndClose(...)`.
 
@@ -28,7 +28,7 @@ https://forresto.github.io/demo-cuttle-plugins/map-picker/
   longitude: -122.6742,
   areaWidthKm: 3.22,     // frame width
   areaDisplayUnit: "mi", // "mi" | "km" – display only
-  aspect: [4, 3],
+  size: { width: 8, height: 6, unit: "in" }, // "in" | "mm"
   detail: "light",       // "light" | "medium" | "high"
   layers: {              // "cut" | "score" | "engrave" | "fill" | "off"
     majorRoads: "engrave",
@@ -49,7 +49,7 @@ https://forresto.github.io/demo-cuttle-plugins/map-picker/
 }
 ```
 
-`_previewImage` is the output: a unitless SVG (longer side 180) that the template scales. `latitude`, `longitude`, and `areaWidthKm` restore the framing. Values saved without `layers` use the defaults shown above.
+`_previewImage` is the output: an SVG at the chosen physical size, with `width`/`height` in mm and a viewBox in mm, so it imports at the right size in any project units. Stroke widths are in mm. `latitude`, `longitude`, and `areaWidthKm` restore the framing. Values saved without `layers` use the defaults shown above.
 
 ## Layers
 

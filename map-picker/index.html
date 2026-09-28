@@ -313,27 +313,31 @@
           <h3>Design</h3>
 
           <div class="row">
-            <span>Aspect ratio</span>
+            <span>Size</span>
             <span class="pair">
               <input
                 id="width"
                 name="width"
                 type="number"
-                value="4"
+                value="8"
                 min="0"
                 step="any"
-                aria-label="Aspect width"
+                aria-label="Width"
               />
-              <span class="times">:</span>
+              <span class="times">×</span>
               <input
                 id="height"
                 name="height"
                 type="number"
-                value="3"
+                value="6"
                 min="0"
                 step="any"
-                aria-label="Aspect height"
+                aria-label="Height"
               />
+              <select id="sizeUnit" name="sizeUnit" aria-label="Size unit">
+                <option selected>in</option>
+                <option>mm</option>
+              </select>
             </span>
           </div>
 
@@ -366,9 +370,11 @@
       const $ = (id) => document.getElementById(id);
       const detailRadio = (selector) => document.querySelector(`input[name="detail"]${selector}`);
 
-      // The template decides the output size; geometry is simplified as if the
-      // longer side were this many millimeters, and the SVG is in those units.
-      const NOMINAL_SIZE_MM = 180;
+      // Geometry is built at the chosen physical size in millimeters, and the
+      // SVG says so, so strokes and simplification tolerances are real mm.
+      const MM_PER_INCH = 25.4;
+      // Largest output side.
+      const MAX_SIZE_MM = 1200;
       const KM_PER_MILE = 1.609344;
       const EARTH_CIRCUMFERENCE_KM = 40075.016686;
 
@@ -384,22 +390,22 @@
         fill: { label: "Engrave fill", color: "#000000" },
       };
 
-      // Listed in panel order. `width` is the engrave line width in millimeters,
-      // `limit` caps the count after decluttering (buildings use the detail setting).
+      // Listed in panel order. `width` is the engrave line width in millimeters.
+      // Density comes from decluttering, which scales with frame size and detail.
       const CATEGORIES = [
-        { id: "majorRoads", label: "Major roads", op: "score", width: 0.4, limit: 150 },
-        { id: "minorRoads", label: "Local roads", op: "score", width: 0.3, limit: 650 },
-        { id: "paths", label: "Paths", op: "off", width: 0.2, limit: 650 },
-        { id: "railways", label: "Railways", op: "score", width: 0.3, limit: 150 },
-        { id: "water", label: "Water", area: true, op: "engrave", width: 0.3, limit: 250 },
+        { id: "majorRoads", label: "Major roads", op: "score", width: 0.4 },
+        { id: "minorRoads", label: "Local roads", op: "score", width: 0.3 },
+        { id: "paths", label: "Paths", op: "off", width: 0.2 },
+        { id: "railways", label: "Railways", op: "score", width: 0.3 },
+        { id: "water", label: "Water", area: true, op: "engrave", width: 0.3 },
         // Centerlines stop at the shore of water areas, unless Water is off.
-        { id: "waterways", label: "Rivers & streams", op: "score", width: 0.3, limit: 250 },
+        { id: "waterways", label: "Rivers & streams", op: "score", width: 0.3 },
         // Piers, dams, and bridges are cut out of Water when it is filled, unless they are off.
-        { id: "piers", label: "Piers & dams", op: "off", width: 0.2, limit: 250 },
-        { id: "bridges", label: "Bridges", op: "score", width: 0.2, limit: 250 },
-        { id: "ferries", label: "Ferries", op: "off", width: 0.2, limit: 50 },
+        { id: "piers", label: "Piers & dams", op: "off", width: 0.2 },
+        { id: "bridges", label: "Bridges", op: "score", width: 0.2 },
+        { id: "ferries", label: "Ferries", op: "off", width: 0.2 },
         { id: "buildings", label: "Buildings", area: true, op: "score", width: 0.2 },
-        { id: "parks", label: "Parks & woods", area: true, op: "off", width: 0.2, limit: 250 },
+        { id: "parks", label: "Parks & woods", area: true, op: "off", width: 0.2 },
         { id: "border", label: "Border", op: "cut", width: 0.2 },
       ];
       const categoryById = Object.fromEntries(
@@ -448,14 +454,15 @@
       const setSearchStatus = (message, error = false) => setStatus(message, error, "searchStatus");
 
       /*
-       * Nominal design size from the aspect ratio, or null if the fields are invalid.
+       * Design size in millimeters, or null if the fields are invalid.
        */
       function readSize() {
-        const aspect = Number($("width").value) / Number($("height").value);
-        if (!(aspect >= 0.1 && aspect <= 10)) return null;
-        return aspect >= 1
-          ? { width: NOMINAL_SIZE_MM, height: NOMINAL_SIZE_MM / aspect }
-          : { width: NOMINAL_SIZE_MM * aspect, height: NOMINAL_SIZE_MM };
+        const mmPerUnit = $("sizeUnit").value === "in" ? MM_PER_INCH : 1;
+        const width = Number($("width").value) * mmPerUnit;
+        const height = Number($("height").value) * mmPerUnit;
+        if (!(width > 0 && height > 0)) return null;
+        if (Math.max(width, height) > MAX_SIZE_MM) return null;
+        return { width, height };
       }
 
       /*
@@ -593,7 +600,7 @@
         const run = ++generation;
         const size = readSize();
         if (!size) {
-          setStatus("Aspect ratio must be between 1:10 and 10:1.", true);
+          setStatus("Size must be positive and at most 1200 × 1200 mm.", true);
           return;
         }
         const view = currentView();
@@ -1173,6 +1180,7 @@
           settings.lineNovelty,
         );
         declutter(["water", "waterways"], settings.waterSpacing, 0.18);
+        declutter(["bridges", "piers", "ferries"], settings.waterSpacing, 0.18);
         declutter(["parks"], settings.waterSpacing, 0.18);
 
         buildings.sort((a, b) => b.area - a.area);
@@ -1186,13 +1194,11 @@
         }
 
         for (const category of CATEGORIES) {
-          const limit = category.limit ?? settings.maxBuildings;
           const target = categories[category.id];
-          if (target.lines.length > limit || target.fills.length > limit) limited = true;
-          if (category.id !== "buildings") target.lines = target.lines.slice(0, limit);
+          if (target.fills.length > settings.maxBuildings) limited = true;
           target.fills = target.fills
             .sort((a, b) => b.area - a.area)
-            .slice(0, limit)
+            .slice(0, settings.maxBuildings)
             .map((polygon) => polygon.points);
         }
 
@@ -1249,7 +1255,7 @@
               `x="${x}" y="${y}" width="${formatNumber(width)}" height="${formatNumber(height)}"/>`,
           );
         }
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${formatNumber(width)}" height="${formatNumber(height)}" viewBox="${x} ${y} ${formatNumber(width)} ${formatNumber(height)}">
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${formatNumber(width)}mm" height="${formatNumber(height)}mm" viewBox="${x} ${y} ${formatNumber(width)} ${formatNumber(height)}">
 <!-- Map data © OpenStreetMap contributors, ODbL 1.0 -->
 <g fill="none" stroke-linecap="round" stroke-linejoin="round">
 ${paths.join("\n")}
@@ -1374,6 +1380,18 @@ ${paths.join("\n")}
       // Only the display changes; the framed area stays the same.
       $("areaUnit").addEventListener("change", updateAreaField);
 
+      // Convert the fields so the physical size stays the same.
+      $("sizeUnit").addEventListener("change", () => {
+        const toInches = $("sizeUnit").value === "in";
+        const factor = toInches ? 1 / MM_PER_INCH : MM_PER_INCH;
+        const digits = toInches ? 2 : 1;
+        for (const id of ["width", "height"]) {
+          const value = Number($(id).value);
+          if (value > 0) $(id).value = Number((value * factor).toFixed(digits));
+        }
+        scheduleRender();
+      });
+
       for (const radio of document.querySelectorAll('input[name="detail"]')) {
         radio.addEventListener("change", scheduleRender);
       }
@@ -1412,7 +1430,11 @@ ${paths.join("\n")}
           longitude: view.lon,
           areaWidthKm: view.widthKm,
           areaDisplayUnit: $("areaUnit").value,
-          aspect: [Number($("width").value), Number($("height").value)],
+          size: {
+            width: Number($("width").value),
+            height: Number($("height").value),
+            unit: $("sizeUnit").value,
+          },
           detail: detailRadio(":checked").value,
           layers: readOps(),
           _previewText: placeName || `${view.lat.toFixed(4)}, ${view.lon.toFixed(4)}`,
@@ -1434,10 +1456,11 @@ ${paths.join("\n")}
           if (["mi", "km"].includes(value.areaDisplayUnit)) {
             $("areaUnit").value = value.areaDisplayUnit;
           }
-          const [aspectWidth, aspectHeight] = Array.isArray(value.aspect) ? value.aspect : [];
-          if (Number(aspectWidth) > 0 && Number(aspectHeight) > 0) {
-            $("width").value = aspectWidth;
-            $("height").value = aspectHeight;
+          const size = value.size;
+          if (Number(size?.width) > 0 && Number(size?.height) > 0) {
+            $("width").value = size.width;
+            $("height").value = size.height;
+            if (["in", "mm"].includes(size.unit)) $("sizeUnit").value = size.unit;
           }
           if (["light", "medium", "high"].includes(value.detail)) {
             detailRadio(`[value="${value.detail}"]`).checked = true;
