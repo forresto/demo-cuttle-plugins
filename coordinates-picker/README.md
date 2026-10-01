@@ -4,7 +4,7 @@ A Cuttle Customizer Plugin that turns a place search into geographic coordinates
 
 ## Live plugin
 
-https://forresto.github.io/test-cuttle-plugins/example/osm-place-picker/
+https://forresto.github.io/demo-cuttle-plugins/coordinates-picker/index.html
 
 ## Source
 
@@ -59,7 +59,7 @@ The plugin writes:
 Keep the Cuttle SDK lifecycle:
 
 ```js
-cuttle.ready(value => {
+cuttle.ready((value) => {
   // restore state
 });
 
