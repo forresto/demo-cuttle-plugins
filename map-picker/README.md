@@ -16,7 +16,7 @@ https://forresto.github.io/demo-cuttle-plugins/map-picker/
 2. Pan and scroll the Leaflet map to frame the area inside the inset frame.
 3. Set the physical size (in or mm) and detail level, and choose a laser operation for each layer.
 4. When the map settles, vector tiles are simplified into an SVG drawn over the map in place.
-5. **Save** calls `cuttle.setValueAndClose(...)`.
+5. Review the feature count and SVG size in the Output panel, then **Save** calls `cuttle.setValueAndClose(...)`.
 
 ## Cuttle value
 

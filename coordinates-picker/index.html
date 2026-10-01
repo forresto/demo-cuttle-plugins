@@ -18,8 +18,9 @@
         --panel: #f3f3f3;
         --field: #e6e6e6;
         --field-h: #dedede;
+        --field-border: rgba(0, 0, 0, 0.25);
         --ink: rgba(0, 0, 0, 0.85);
-        --ink2: rgba(0, 0, 0, 0.5);
+        --ink2: rgba(0, 0, 0, 0.6);
         --line: rgba(0, 0, 0, 0.1);
         --blue: hsl(200, 100%, 50%);
         --blue-h: hsl(200, 100%, 58%);
@@ -36,7 +37,7 @@
         background: var(--bg);
         color: var(--ink);
         font:
-          14px/1.4 system-ui,
+          16px/1.4 system-ui,
           -apple-system,
           sans-serif;
       }
@@ -88,6 +89,8 @@
       .controls {
         display: grid;
         gap: 12px;
+        min-width: 0;
+        container-type: inline-size;
       }
       .panel {
         display: grid;
@@ -98,26 +101,27 @@
       }
       .row {
         display: grid;
-        grid-template-columns: minmax(72px, 2fr) 3fr;
+        grid-template-columns: minmax(72px, 2fr) minmax(0, 3fr);
         gap: 8px;
         align-items: center;
       }
       .pair {
-        display: flex;
-        gap: 4px;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
         align-items: center;
         min-width: 0;
       }
       h3 {
         margin: 4px 0 0;
-        font-size: 11px;
+        font-size: 13px;
         font-weight: 600;
         letter-spacing: 0.08em;
         text-transform: uppercase;
         color: var(--ink2);
       }
       small {
-        font-size: 12px;
+        font-size: 14px;
         color: var(--ink2);
       }
 
@@ -131,11 +135,16 @@
         padding: 4px 8px;
         width: 100%;
         min-width: 0;
-        min-height: 28px;
+        min-height: 36px;
       }
       input:hover,
       button:not(:disabled):hover {
         background: var(--field-h);
+      }
+      input[type="text"],
+      input[type="text"]:hover {
+        background: #fff;
+        border: 1px solid var(--field-border);
       }
       :focus-visible {
         outline: 2px solid var(--blue);
@@ -149,6 +158,10 @@
         cursor: default;
       }
 
+      .pair button {
+        width: auto;
+        justify-self: start;
+      }
       .primary {
         background: var(--blue);
         color: #fff;
@@ -163,13 +176,13 @@
 
       .note {
         margin: 0;
-        padding: 8px 10px;
-        border-radius: 6px;
-        background: #fff;
-        box-shadow: inset 0 0 0 1px var(--line);
-        font-size: 13px;
+        color: var(--ink2);
+        font-size: 14px;
+        overflow-wrap: anywhere;
       }
       .note.error {
+        padding: 8px 10px;
+        border-radius: 6px;
         background: var(--error);
         color: var(--error-ink);
       }
@@ -181,9 +194,12 @@
         inset: 0;
         isolation: isolate;
       }
-      .pair button {
-        flex: none;
-        width: auto;
+      /* Stack based on the controls' width, including beside the map. */
+      @container (max-width: 360px) {
+        .row {
+          grid-template-columns: minmax(0, 1fr);
+          gap: 4px;
+        }
       }
       #status:empty,
       #results:empty {
@@ -201,7 +217,7 @@
       }
       output {
         font-family: var(--mono);
-        font-size: 13px;
+        font-size: 1rem;
         overflow-wrap: anywhere;
       }
     </style>
@@ -228,7 +244,10 @@
 
           <p id="status" class="note" aria-live="polite"></p>
           <div id="results"></div>
+        </div>
 
+        <div class="panel">
+          <h3>Coordinates</h3>
           <div id="coordinates" style="display: none">
             <div class="row">
               <span>Latitude</span>
@@ -239,9 +258,8 @@
               <output id="longitude_out"></output>
             </div>
           </div>
+          <button id="save" type="button" class="primary">Save</button>
         </div>
-
-        <button id="save" type="button" class="primary">Save</button>
 
         <small>Map © OpenStreetMap contributors · Leaflet</small>
       </div>
