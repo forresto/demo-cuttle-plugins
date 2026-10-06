@@ -14,7 +14,7 @@ The plugin saves a value like:
 {
   count: 6,
   colors: ["#ffffff", "..."],
-  _previewImage: "data:image/svg+xml,..."
+  _image: "data:image/svg+xml,..."
 }
 ```
 

@@ -28,7 +28,9 @@ https://forresto.github.io/demo-cuttle-plugins/map-picker/
   longitude: -122.6742,
   areaWidthKm: 3.22,     // frame width
   areaDisplayUnit: "mi", // "mi" | "km" – display only
-  size: { width: 8, height: 6, unit: "in" }, // "in" | "mm"
+  width: 8,              // physical size of the output
+  height: 6,
+  unit: "in",            // "in" | "mm"
   detail: "light",       // "light" | "medium" | "high"
   layers: {              // "cut" | "score" | "engrave" | "fill" | "off"
     majorRoads: "engrave",
@@ -44,12 +46,12 @@ https://forresto.github.io/demo-cuttle-plugins/map-picker/
     parks: "off",
     border: "cut"
   },
-  _previewText: "Portland, Multnomah County, Oregon, United States",
-  _previewImage: "data:image/svg+xml,..."
+  _text: "Portland, Multnomah County, Oregon, United States",
+  _image: "data:image/svg+xml,..."
 }
 ```
 
-`_previewImage` is the output: an SVG at the chosen physical size, with `width`/`height` in mm and a viewBox in mm, so it imports at the right size in any project units. Stroke widths are in mm. `latitude`, `longitude`, and `areaWidthKm` restore the framing. Values saved without `layers` use the defaults shown above.
+`_image` is the output: an SVG at the chosen physical size, with `width`/`height` in mm and a viewBox in mm, so it imports at the right size in any project units. Stroke widths are in mm. `latitude`, `longitude`, and `areaWidthKm` restore the framing. Values saved without `layers` use the defaults shown above.
 
 ## Layers
 

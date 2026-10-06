@@ -1442,7 +1442,7 @@ ${paths.join("\n")}
 
       /*
        * Save the framing and the rendered vectors. Cuttle imports the SVG from
-       * _previewImage; the rest restores the plugin next time.
+       * _image; the rest restores the plugin next time.
        */
       $("save").addEventListener("click", () => {
         if (!window.cuttle || !map || !svgUrl) return;
@@ -1454,15 +1454,13 @@ ${paths.join("\n")}
           longitude: view.lon,
           areaWidthKm: view.widthKm,
           areaDisplayUnit: $("areaUnit").value,
-          size: {
-            width: Number($("width").value),
-            height: Number($("height").value),
-            unit: $("sizeUnit").value,
-          },
+          width: Number($("width").value),
+          height: Number($("height").value),
+          unit: $("sizeUnit").value,
           detail: detailRadio(":checked").value,
           layers: readOps(),
-          _previewText: placeName || `${view.lat.toFixed(4)}, ${view.lon.toFixed(4)}`,
-          _previewImage: svgUrl,
+          _text: placeName || `${view.lat.toFixed(4)}, ${view.lon.toFixed(4)}`,
+          _image: svgUrl,
         });
       });
 
@@ -1480,11 +1478,10 @@ ${paths.join("\n")}
           if (["mi", "km"].includes(value.areaDisplayUnit)) {
             $("areaUnit").value = value.areaDisplayUnit;
           }
-          const size = value.size;
-          if (Number(size?.width) > 0 && Number(size?.height) > 0) {
-            $("width").value = size.width;
-            $("height").value = size.height;
-            if (["in", "mm"].includes(size.unit)) $("sizeUnit").value = size.unit;
+          if (Number(value.width) > 0 && Number(value.height) > 0) {
+            $("width").value = value.width;
+            $("height").value = value.height;
+            if (["in", "mm"].includes(value.unit)) $("sizeUnit").value = value.unit;
           }
           if (["light", "medium", "high"].includes(value.detail)) {
             detailRadio(`[value="${value.detail}"]`).checked = true;
