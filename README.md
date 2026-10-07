@@ -58,7 +58,30 @@ Give the SVG `width` and `height` in physical units (such as `in` or `mm`). Toge
 </svg>
 ```
 
-Avoid unitless `width` and `height`, which leave the physical size ambiguous. Keep the `viewBox` aspect ratio equal to `width:height`. Map Picker uses `mm` for `width`, `height`, and the `viewBox`, so one user unit is 1 mm and stroke widths are in mm.
+Avoid unitless `width` and `height`, which leave the physical size ambiguous. Keep the `viewBox` aspect ratio equal to `width:height`. Coordinates and stroke widths are then plain numbers in user units; no unit is implied beyond what `width`/`height` and the `viewBox` define. Pick a user unit that suits the plugin: 1 mm for metric designs, 1 in (or a fraction such as 0.01 in) for imperial ones, or 1 px (1/96 in, e.g. `width="8in"` with `viewBox="0 0 768 576"`) when the geometry comes from screen or canvas coordinates. Map Picker uses `mm` for `width`, `height`, and the `viewBox`, so one user unit is 1 mm and stroke widths are in mm.
+
+#### Laser operations: colors and stroke widths
+
+Cuttle reads the laser operation from color and stroke width. Widths are measured at physical size, after the `viewBox` scaling above.
+
+| Operation | SVG |
+| --------- | --- |
+| Cut       | red `#ff0000` hairline stroke, no fill |
+| Score     | blue `#0000ff` hairline stroke, no fill |
+| Engrave   | black `#000000` stroke at least 0.02 in wide, or black `#000000` fill |
+
+Any stroke thinner than 0.02 in (0.508 mm) is imported as a hairline, which is what cut and score lines are. Draw cut and score strokes at 0.01 in (0.254 mm). Keep engrave strokes comfortably at or above 0.02 in, or they come in as hairlines instead of engraved lines. [Map Picker](./map-picker/) follows these conventions.
+
+For example, with one user unit = 0.01 in, as above:
+
+```svg
+<svg xmlns="http://www.w3.org/2000/svg" width="8in" height="6in" viewBox="0 0 800 600">
+  <rect x="0" y="0" width="800" height="600" fill="none" stroke="#ff0000" stroke-width="1"/> <!-- cut -->
+  <path d="M100 300H700" fill="none" stroke="#0000ff" stroke-width="1"/>                        <!-- score -->
+  <path d="M100 400H700" fill="none" stroke="#000000" stroke-width="4"/>                        <!-- engrave line, 0.04 in -->
+  <circle cx="400" cy="150" r="50" fill="#000000"/>                                               <!-- engrave fill -->
+</svg>
+```
 
 ## Libraries
 

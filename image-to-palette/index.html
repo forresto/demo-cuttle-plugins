@@ -543,7 +543,8 @@
       let inputFileReader = null;
 
       function makePreviewImage(palette) {
-        const size = 64;
+        // Each swatch is 10 × 10 mm; one user unit is 1 mm.
+        const size = 10;
         const width = size * palette.length;
         const rects = palette
           .map(
@@ -562,9 +563,9 @@
         const svg =
           '<svg xmlns="http://www.w3.org/2000/svg" width="' +
           width +
-          '" height="' +
+          'mm" height="' +
           size +
-          '" viewBox="0 0 ' +
+          'mm" viewBox="0 0 ' +
           width +
           " " +
           size +

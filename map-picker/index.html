@@ -405,7 +405,12 @@
       /*
        * Laser operations, in Cuttle's colors. "fill" engraves the area itself
        * and is only offered for area categories.
+       *
+       * Cuttle imports any stroke thinner than 0.02 in as a hairline. Cut and
+       * score are hairlines (0.01 in); engrave strokes must stay at or above
+       * 0.02 in (0.508 mm), or they come in as hairlines instead of engraving.
        */
+      const HAIRLINE_MM = 0.254; // 0.01 in
       const OPERATIONS = {
         off: { label: "Off" },
         cut: { label: "Cut", color: "#ff0000" },
@@ -414,23 +419,24 @@
         fill: { label: "Engrave fill", color: "#000000" },
       };
 
-      // Listed in panel order. `width` is the engrave line width in millimeters.
+      // Listed in panel order. `width` is the engrave line width in millimeters,
+      // at least 0.6 mm so it stays clear of the 0.508 mm hairline threshold.
       // Density comes from decluttering, which scales with frame size and detail.
       const CATEGORIES = [
-        { id: "majorRoads", label: "Major roads", op: "score", width: 0.4 },
-        { id: "minorRoads", label: "Local roads", op: "score", width: 0.3 },
-        { id: "paths", label: "Paths", op: "off", width: 0.2 },
-        { id: "railways", label: "Railways", op: "score", width: 0.3 },
-        { id: "water", label: "Water", area: true, op: "engrave", width: 0.3 },
+        { id: "majorRoads", label: "Major roads", op: "score", width: 1 },
+        { id: "minorRoads", label: "Local roads", op: "score", width: 0.8 },
+        { id: "paths", label: "Paths", op: "off", width: 0.6 },
+        { id: "railways", label: "Railways", op: "score", width: 0.8 },
+        { id: "water", label: "Water", area: true, op: "engrave", width: 0.8 },
         // Centerlines stop at the shore of water areas, unless Water is off.
-        { id: "waterways", label: "Rivers & streams", op: "score", width: 0.3 },
+        { id: "waterways", label: "Rivers & streams", op: "score", width: 0.8 },
         // Piers, dams, and bridges are cut out of Water when it is filled, unless they are off.
-        { id: "piers", label: "Piers & dams", op: "off", width: 0.2 },
-        { id: "bridges", label: "Bridges", op: "score", width: 0.2 },
-        { id: "ferries", label: "Ferries", op: "off", width: 0.2 },
-        { id: "buildings", label: "Buildings", area: true, op: "score", width: 0.2 },
-        { id: "parks", label: "Parks & woods", area: true, op: "off", width: 0.2 },
-        { id: "border", label: "Border", op: "cut", width: 0.2 },
+        { id: "piers", label: "Piers & dams", op: "off", width: 0.6 },
+        { id: "bridges", label: "Bridges", op: "score", width: 0.6 },
+        { id: "ferries", label: "Ferries", op: "off", width: 0.6 },
+        { id: "buildings", label: "Buildings", area: true, op: "score", width: 0.6 },
+        { id: "parks", label: "Parks & woods", area: true, op: "off", width: 0.6 },
+        { id: "border", label: "Border", op: "cut", width: 0.6 },
       ];
       const categoryById = Object.fromEntries(
         CATEGORIES.map((category) => [category.id, category]),
@@ -1230,7 +1236,8 @@
       }
 
       /*
-       * Cuttle operation colors: red = cut, blue = score, black = engrave.
+       * Cuttle operation colors: red hairline = cut, blue hairline = score,
+       * black thick stroke or fill = engrave.
        * Fills first, then outlines and lines, then the border on top.
        */
       function renderSvg(geometry, size, ops) {
@@ -1245,7 +1252,7 @@
         const x = formatNumber(-width / 2);
         const y = formatNumber(-height / 2);
         const strokeWidth = (id) =>
-          ops[id] === "engrave" ? categoryById[id].width : id === "buildings" ? 0.15 : 0.2;
+          ops[id] === "engrave" ? categoryById[id].width : HAIRLINE_MM;
         const paths = [];
         for (const id of ["water", "parks", "buildings"]) {
           const { fills } = geometry.categories[id];

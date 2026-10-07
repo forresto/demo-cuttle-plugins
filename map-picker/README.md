@@ -59,11 +59,13 @@ Each layer comes from the Shortbread vector tiles and gets one operation, in Cut
 
 | Operation | SVG |
 |---|---|
-| Cut | red `#ff0000` stroke |
-| Score | blue `#0000ff` stroke |
-| Engrave | black `#000000` stroke, as a thick line at the layer's width |
+| Cut | red `#ff0000` hairline stroke, 0.254 mm (0.01 in) |
+| Score | blue `#0000ff` hairline stroke, 0.254 mm (0.01 in) |
+| Engrave | black `#000000` stroke, as a thick line at the layer's width (0.6–1 mm) |
 | Engrave fill | black `#000000` fill, no stroke (areas only: water, buildings, parks & woods) |
 | Off | omitted |
+
+Cuttle imports strokes thinner than 0.02 in (0.508 mm) as hairlines, so engrave widths stay at 0.6 mm or more to come in as engraved lines rather than hairlines.
 
 | Layer | Source |
 |---|---|
