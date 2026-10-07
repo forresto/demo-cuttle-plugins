@@ -70,11 +70,14 @@ Examples load third-party libraries from version-pinned CDNs, such as:
 
 ## Hosting
 
-The repository is published with [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site) from the `main` branch root.
-
-Static plugin files can therefore be used directly as HTTPS Cuttle Input Plugin URLs. For example,
+Cuttle Customizer Plugins are ordinary web pages loaded from an HTTPS URL. For example,
 
 `https://forresto.github.io/demo-cuttle-plugins/image-to-palette/index.html`
+
+Options for hosting:
+
+- [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site) (free)
+- [ChatGPT Sites](https://help.openai.com/en/articles/20001339-creating-and-using-chatgpt-sites) (with paid plans)
 
 ## Reading plugin values
 
@@ -108,8 +111,8 @@ A useful workflow is:
 3. Adapt the value schema to the requested parameter.
 4. Keep the plugin self-contained in one HTML file.
 5. Add a basic README.md with your plugin's index.html.
-6. Publish it through GitHub Pages.
-7. Return the live HTTPS URL.
+6. Publish the plugin where it can be accessed with a stable HTTPS URL.
+7. Return the live URL.
 
 Each example should document:
 
