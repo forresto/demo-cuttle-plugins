@@ -88,19 +88,18 @@ Cuttle reads the laser operation from color and stroke width.
 | Score     | blue `#0000ff` hairline stroke, no fill                               |
 | Engrave   | black `#000000` stroke at least 0.02 in wide, or black `#000000` fill |
 
-The SDK provides these values as `cuttle.laser`, so a plugin doesn't hard-code them:
+Stroke widths depend on the unit on the SVG's `width` and `height`:
 
-- **`cuttle.laser.colors.cut`**, **`.score`**, **`.engrave`** — the color for each operation.
-- **`cuttle.laser.hairline(unit)`** — the stroke width for cut and score lines (0.01 in, 0.254 mm).
-- **`cuttle.laser.engraveMin(unit)`** — the thinnest stroke that engraves (0.02 in, 0.508 mm); anything thinner imports as a hairline.
+| Unit | Hairline (cut and score) | Minimum engrave stroke |
+| ---- | ------------------------ | ---------------------- |
+| `in` | 0.01                     | 0.02                   |
+| `mm` | 0.254                    | 0.508                  |
+| `px` | 0.96                     | 1.92                   |
+| `pt` | 0.72                     | 1.44                   |
 
-`unit` is the unit on the SVG's `width` and `height`: `"in"`, `"mm"`, `"px"`, or `"pt"`.
+Any stroke thinner than the engrave minimum imports as a hairline.
 
-```js
-const cut = `<path fill="none" stroke="${cuttle.laser.colors.cut}" stroke-width="${cuttle.laser.hairline("mm")}" d="…"/>`;
-```
-
-The resulting SVG, with the values written out:
+An SVG in millimeters with each operation:
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="150mm" viewBox="0 0 200 150">
@@ -155,7 +154,7 @@ Give a coding agent or AI assistant this repository URL:
 
 Then describe the Cuttle parameter and UI you want.
 
-A useful workflow is:
+The agent should follow this workflow:
 
 1. Inspect the closest example.
 2. Preserve the Cuttle Parameter Plugin SDK lifecycle.
@@ -163,4 +162,4 @@ A useful workflow is:
 4. Keep the plugin self-contained in one HTML file.
 5. Add a README.md beside the plugin's index.html: live URL, the value written to Cuttle, how the UI behaves, and external dependencies.
 6. Publish the plugin where it can be accessed with a stable HTTPS URL.
-7. Return the live URL. If you can't publish to a stable HTTPS URL, return the HTML code and a hint about hosting.
+7. Return the live URL. If publishing to a stable HTTPS URL isn't possible, return the HTML code and a hint about hosting.

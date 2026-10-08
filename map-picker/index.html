@@ -406,22 +406,21 @@
        * Laser operations, in Cuttle's colors. "fill" engraves the area itself
        * and is only offered for area categories.
        *
-       * The colors and stroke widths come from cuttle.laser. Cut and score are
-       * hairlines; engrave strokes must stay at or above
-       * cuttle.laser.engraveMin("mm"), or they come in as hairlines instead of
+       * Cut and score are hairlines (0.01 in); engrave strokes must stay at or
+       * above 0.02 in (0.508 mm), or they come in as hairlines instead of
        * engraving.
        */
-      const HAIRLINE_MM = cuttle.laser.hairline("mm");
+      const HAIRLINE_MM = 0.254;
       const OPERATIONS = {
         off: { label: "Off" },
-        cut: { label: "Cut", color: cuttle.laser.colors.cut },
-        score: { label: "Score", color: cuttle.laser.colors.score },
-        engrave: { label: "Engrave", color: cuttle.laser.colors.engrave },
-        fill: { label: "Engrave fill", color: cuttle.laser.colors.engrave },
+        cut: { label: "Cut", color: "#ff0000" },
+        score: { label: "Score", color: "#0000ff" },
+        engrave: { label: "Engrave", color: "#000000" },
+        fill: { label: "Engrave fill", color: "#000000" },
       };
 
       // Listed in panel order. `width` is the engrave line width in millimeters,
-      // at least 0.6 mm so it stays clear of cuttle.laser.engraveMin("mm").
+      // at least 0.6 mm so it stays clear of the 0.508 mm engrave minimum.
       // Density comes from decluttering, which scales with frame size and detail.
       const CATEGORIES = [
         { id: "majorRoads", label: "Major roads", op: "score", width: 1 },

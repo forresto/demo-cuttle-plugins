@@ -13,7 +13,7 @@ whatever its UX needs (full-width preview, no preview, custom controls). Borrow 
 - White bordered text fields, useful placeholders, and a 16px base UI.
 - One output raft groups the value being saved with the explicit "Save" button.primary.
 - Blue is for actions and focus; the design's own colors go in the content.
-- SVG output has physical width/height, a matching viewBox, and laser color and stroke width from cuttle.laser (blue hairline = score).
+- SVG output has physical width/height, a matching viewBox, and laser color and stroke width (blue hairline = score).
 - Do what Cuttle can't (search, analysis, simulation); leave the rest to Cuttle (icons, fonts, modifiers).
 - System font, native inputs, prefer vanilla JS.
 
@@ -454,15 +454,17 @@ Plugin docs: https://github.com/forresto/demo-cuttle-plugins
 <script>
   // The design is a reference, not a required layout. Keep this lifecycle when
   // adapting the page into a Cuttle parameter plugin.
-  // The units cuttle.laser understands, minus pt.
-  const UNITS = ["mm", "in", "px"];
+  // Cuttle's hairline stroke width (0.01 in) in each unit; a blue hairline is
+  // a score line.
+  const HAIRLINE = { mm: 0.254, in: 0.01, px: 0.96 };
+  const UNITS = Object.keys(HAIRLINE);
   const field = (name) => document.querySelector(`[name="${name}"]`);
   const fmt = (v) => String(Math.round(v * 1000) / 1000);
 
   // A star as score lines: n points on a circle, each joined to the point
   // nearly opposite, for the sharpest star. The viewBox matches width/height,
-  // so coordinates are in the chosen unit and cuttle.laser.hairline(unit) is
-  // the score line's stroke width.
+  // so coordinates are in the chosen unit and HAIRLINE[unit] is the score
+  // line's stroke width.
   function starSvg(points, size, unit) {
     const n = Math.min(24, Math.max(5, Math.round(points) || 5));
     const r = size / 2;
@@ -476,7 +478,7 @@ Plugin docs: https://github.com/forresto/demo-cuttle-plugins
     const s = fmt(size);
     return (
       `<svg xmlns="http://www.w3.org/2000/svg" width="${s}${unit}" height="${s}${unit}" viewBox="0 0 ${s} ${s}">` +
-      `<path fill="none" stroke="${cuttle.laser.colors.score}" stroke-width="${cuttle.laser.hairline(unit)}" d="${d}"/></svg>`
+      `<path fill="none" stroke="#0000ff" stroke-width="${HAIRLINE[unit]}" d="${d}"/></svg>`
     );
   }
 
