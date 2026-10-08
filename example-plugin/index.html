@@ -13,6 +13,7 @@ whatever its UX needs (full-width preview, no preview, custom controls). Borrow 
 - White bordered text fields, useful placeholders, and a 16px base UI.
 - One output raft groups the value being saved with the explicit "Save" button.primary.
 - Blue is for actions and focus; the design's own colors go in the content.
+- SVG output has physical width/height, a matching viewBox, and laser colors (blue hairline = score).
 - Do what Cuttle can't (search, analysis, simulation); leave the rest to Cuttle (icons, fonts, modifiers).
 - System font, native inputs, prefer vanilla JS.
 -->
@@ -91,9 +92,13 @@ whatever its UX needs (full-width preview, no preview, custom controls). Borrow 
     height: 100%;
   }
   .preview svg {
-    width: 60%;
-    height: 70%;
-    filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.15));
+    width: 80%;
+    height: 80%;
+  }
+  /* Preview only: keep the hairline visible on screen at any physical size. */
+  .preview svg path {
+    vector-effect: non-scaling-stroke;
+    stroke-width: 1.5px;
   }
   .empty {
     color: var(--ink2);
@@ -360,28 +365,22 @@ whatever its UX needs (full-width preview, no preview, custom controls). Borrow 
 </style>
 
 <div class="layout">
-  <div class="preview" aria-live="polite">
-    <svg viewBox="0 0 100 110" aria-label="Preview">
-      <path
-        fill="var(--accent)"
-        fill-rule="evenodd"
-        d="M8 12h14a10 10 0 0 1 20 0h50a8 8 0 0 1 8 8v82a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V20a8 8 0 0 1 8-8zM32 6a5 5 0 1 0 0.01 0z"
-      />
-      <rect x="18" y="30" width="64" height="64" rx="3" fill="#222" />
-    </svg>
-  </div>
+  <div class="preview" aria-live="polite"></div>
 
   <div class="controls">
     <div class="panel">
       <h3>Group A</h3>
       <label class="row"
-        >Text <input type="text" name="text" value="Hello" placeholder="Enter text..." /></label
-      >
+        >Text <input type="text" name="text" value="Hello" placeholder="Enter text..."
+      /></label>
       <label class="row"
-        >Number
+        >Number <input type="number" name="number" value="5" min="5" max="24" step="1"
+      /></label>
+      <label class="row"
+        >Size
         <span class="pair">
-          <input type="number" name="number" value="2.00" step="0.01" min="0" />
-          <select name="number_unit" aria-label="Number unit">
+          <input type="number" name="size" value="2.00" step="0.01" min="0.1" />
+          <select name="size_unit" aria-label="Size unit">
             <option>mm</option>
             <option>cm</option>
             <option selected>in</option>
@@ -445,7 +444,6 @@ whatever its UX needs (full-width preview, no preview, custom controls). Borrow 
     <div class="panel">
       <h3>Output</h3>
       <output id="value-summary"></output>
-      <p class="note">The output raft groups the value being saved with Save.</p>
       <button type="button" class="primary">Save</button>
     </div>
 
@@ -455,30 +453,70 @@ whatever its UX needs (full-width preview, no preview, custom controls). Borrow 
 <script>
   // The design is a reference, not a required layout. Keep this lifecycle when
   // adapting the page into a Cuttle input plugin.
-  function updateSummary() {
-    const text = document.querySelector('[name="text"]').value;
-    const number = Number(document.querySelector('[name="number"]').value);
-    const range = Number(document.querySelector('[name="range"]').value);
-    document.getElementById("value-summary").textContent =
-      `${text || "Empty text"} · ${number} · ${range}`;
+  const UNITS = ["mm", "cm", "in", "px"];
+  // Cuttle imports any stroke thinner than 0.02 in as a hairline. Cut and
+  // score are hairlines (0.01 in), expressed here in each unit.
+  const HAIRLINE = { in: 0.01, mm: 0.254, cm: 0.0254, px: 0.96 };
+  const field = (name) => document.querySelector(`[name="${name}"]`);
+  const fmt = (v) => String(Math.round(v * 1000) / 1000);
+
+  // A star as score lines: n points on a circle, each joined to the point
+  // nearly opposite, for the sharpest star. One user unit is one of the chosen
+  // unit.
+  function starSvg(points, size, unit) {
+    const n = Math.min(24, Math.max(5, Math.round(points) || 5));
+    const r = size / 2;
+    const pt = (i) => {
+      const a = (i / n) * 2 * Math.PI - Math.PI / 2;
+      return `${fmt(r + r * Math.cos(a))} ${fmt(r + r * Math.sin(a))}`;
+    };
+    const step = Math.floor((n - 1) / 2);
+    let d = "";
+    for (let i = 0; i < n; i++) d += `M${pt(i)}L${pt(i + step)}`;
+    const s = fmt(size);
+    return (
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${s}${unit}" height="${s}${unit}" viewBox="0 0 ${s} ${s}">` +
+      `<path fill="none" stroke="#0000ff" stroke-width="${HAIRLINE[unit]}" d="${d}"/></svg>`
+    );
   }
-  document.querySelector(".controls").addEventListener("input", updateSummary);
-  updateSummary();
+
+  // The value saved to Cuttle. The SVG goes in _image only; don't also save
+  // it under another key.
+  function readValue() {
+    const number = Math.min(24, Math.max(5, Math.round(Number(field("number").value)) || 5));
+    const size = Math.max(0.1, Number(field("size").value) || 2);
+    const unit = field("size_unit").value;
+    return {
+      text: field("text").value,
+      number,
+      size,
+      unit,
+      range: Number(field("range").value),
+      _text: `${number}-point star · ${fmt(size)} ${unit}`,
+      _image: "data:image/svg+xml," + encodeURIComponent(starSvg(number, size, unit)),
+    };
+  }
+
+  function render() {
+    const { number, size, unit, _text } = readValue();
+    document.querySelector(".preview").innerHTML = starSvg(number, size, unit);
+    document.getElementById("value-summary").textContent = _text;
+  }
+  document.querySelector(".controls").addEventListener("input", render);
+  render();
 
   if (window.cuttle) {
     cuttle.ready((value = {}) => {
-      document.querySelector('[name="text"]').value = value.text ?? "Hello";
-      document.querySelector('[name="number"]').value = value.number ?? "2.00";
-      document.querySelector('[name="range"]').value = value.range ?? 50;
-      updateSummary();
+      field("text").value = value.text ?? "Hello";
+      field("number").value = value.number ?? 5;
+      field("size").value = value.size ?? "2.00";
+      if (UNITS.includes(value.unit)) field("size_unit").value = value.unit;
+      field("range").value = value.range ?? 50;
+      render();
     });
 
     document.querySelector(".primary").addEventListener("click", () => {
-      cuttle.setValueAndClose({
-        text: document.querySelector('[name="text"]').value,
-        number: Number(document.querySelector('[name="number"]').value),
-        range: Number(document.querySelector('[name="range"]').value),
-      });
+      cuttle.setValueAndClose(readValue());
     });
   }
 </script>

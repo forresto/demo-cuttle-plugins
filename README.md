@@ -16,7 +16,7 @@ The examples are intended to be useful as both **working plugins** and **recipes
 
 ## Example plugin
 
-[example-plugin/](./example-plugin/) is a complete, self-contained example with the Cuttle SDK lifecycle and a visual reference for plugin UI: colors, layout, and native controls. The design is a reference, not a template; copy the parts a plugin uses.
+[example-plugin/](./example-plugin/) is a complete, self-contained example with the Cuttle SDK lifecycle and a visual reference for plugin UI: colors, layout, and native controls. It outputs a simple star as score lines, following the SVG conventions below. The design is a reference, not a template; copy the parts a plugin uses.
 
 ## Plugin SDK
 
@@ -64,13 +64,13 @@ Avoid unitless `width` and `height`, which leave the physical size ambiguous. Ke
 
 Cuttle reads the laser operation from color and stroke width. Widths are measured at physical size, after the `viewBox` scaling above.
 
-| Operation | SVG |
-| --------- | --- |
-| Cut       | red `#ff0000` hairline stroke, no fill |
-| Score     | blue `#0000ff` hairline stroke, no fill |
+| Operation | SVG                                                                   |
+| --------- | --------------------------------------------------------------------- |
+| Cut       | red `#ff0000` hairline stroke, no fill                                |
+| Score     | blue `#0000ff` hairline stroke, no fill                               |
 | Engrave   | black `#000000` stroke at least 0.02 in wide, or black `#000000` fill |
 
-Any stroke thinner than 0.02 in (0.508 mm) is imported as a hairline, which is what cut and score lines are. Draw cut and score strokes at 0.01 in (0.254 mm). Keep engrave strokes comfortably at or above 0.02 in, or they come in as hairlines instead of engraved lines. [Map Picker](./map-picker/) follows these conventions.
+Any stroke thinner than 0.02 in (0.508 mm) is imported as a hairline, which is what cut and score lines are. Draw cut and score strokes at 0.01 in (0.254 mm). Keep engrave strokes comfortably at or above 0.02 in, or they come in as hairlines instead of engraved lines. [Map Picker](./map-picker/) and the [example plugin](./example-plugin/) follow these conventions.
 
 For example, with one user unit = 0.01 in, as above:
 
@@ -104,20 +104,27 @@ Options for hosting:
 
 ## Reading plugin values
 
-The plugin writes a JavaScript object to the Cuttle parameter. A component or
-code component reads that object and uses its ordinary fields as inputs:
+The plugin writes a JavaScript object to the Cuttle parameter. Its fields can
+be used in a normal component's expressions, such as `parameterValue.latitude`,
+or in a code component. This code component example reads the fields and renders
+the SVG from `_image`:
 
 ```js
-const value = parameterValue ?? {};
-const latitude = value.latitude;
-const longitude = value.longitude;
-const svg = value._image;
+if (!parameterValue) return;
+const { latitude, longitude, _image } = parameterValue;
+if (!_image) return;
+
+const svgRenderer = getSVGFromURL(_image);
+if (!svgRenderer) return;
+
+return svgRenderer.render();
 ```
 
-The exact component-side API supplies `parameterValue`. The plugin should still
-handle an empty value and missing fields gracefully. `_text` is a
-one-line display summary; `_image` is an optional preview image and can
-also carry the SVG artifact produced by a plugin, as in Map Picker.
+`parameterValue` stands for the name of the component's parameter.
+`getSVGFromURL` returns `undefined` while the SVG is loading, so the code
+returns early until it is ready. The plugin should still handle an empty value
+and missing fields gracefully. `_text` is a one-line display summary. Use
+`_image` if the plugin should pass vector data to Cuttle.
 
 ## Using this repository with AI
 
