@@ -148,6 +148,9 @@ Options for hosting:
 
 ## Using this repository with AI
 
+- [Open with ChatGPT](https://chatgpt.com/?q=Help%20me%20design%20and%20build%20a%20Cuttle%20Parameter%20Plugin%20hosted%20html%20page.%20Here%20is%20a%20reference%3A%20https%3A%2F%2Fgithub.com%2Fforresto%2Fdemo-cuttle-plugins)
+- [Open with Claude](https://claude.ai/new?q=Help%20me%20design%20and%20build%20a%20Cuttle%20Parameter%20Plugin%20hosted%20html%20page.%20Here%20is%20a%20reference%3A%20https%3A%2F%2Fgithub.com%2Fforresto%2Fdemo-cuttle-plugins)
+
 Give a coding agent or AI assistant this repository URL:
 
 `https://github.com/forresto/demo-cuttle-plugins`
