@@ -460,8 +460,9 @@ Plugin docs: https://github.com/forresto/demo-cuttle-plugins
   const fmt = (v) => String(Math.round(v * 1000) / 1000);
 
   // A star as score lines: n points on a circle, each joined to the point
-  // nearly opposite, for the sharpest star. One user unit is one of the chosen
-  // unit, so cuttle.laser.hairline(unit) is the score line's stroke width.
+  // nearly opposite, for the sharpest star. The viewBox matches width/height,
+  // so coordinates are in the chosen unit and cuttle.laser.hairline(unit) is
+  // the score line's stroke width.
   function starSvg(points, size, unit) {
     const n = Math.min(24, Math.max(5, Math.round(points) || 5));
     const r = size / 2;

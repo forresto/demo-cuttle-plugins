@@ -50,19 +50,19 @@ These properties are part of the value object alongside the plugin's normal para
 
 A common pattern is to return the plugin's output as an SVG data URL in `_image`. Cuttle imports it as vector artwork.
 
-Give the SVG `width` and `height` in physical units (such as `in` or `mm`). Together with the `viewBox`, they define how SVG user units map to physical size: the `viewBox` spans the full `width` × `height`, so one user unit is `width / viewBox width` of that unit. For example, this is 8 in × 6 in, and one user unit is 0.01 in:
+Give the SVG `width` and `height` with a unit, `mm` or `in`, and use the same numbers in the `viewBox`:
 
 ```svg
-<svg xmlns="http://www.w3.org/2000/svg" width="8in" height="6in" viewBox="0 0 800 600">
+<svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="150mm" viewBox="0 0 200 150">
   …
 </svg>
 ```
 
-Avoid unitless `width` and `height`, which leave the physical size ambiguous. Keep the `viewBox` aspect ratio equal to `width:height`. Coordinates and stroke widths are then plain numbers in user units; no unit is implied beyond what `width`/`height` and the `viewBox` define. Pick a user unit that suits the plugin: 1 mm for metric designs, 1 in (or a fraction such as 0.01 in) for imperial ones, or 1 px (1/96 in, e.g. `width="8in"` with `viewBox="0 0 768 576"`) when the geometry comes from screen or canvas coordinates. Map Picker uses `mm` for `width`, `height`, and the `viewBox`, so one user unit is 1 mm and stroke widths are in mm.
+Every coordinate and stroke width in the SVG is then in that unit; here, millimeters. Without a unit on `width` and `height`, the physical size is ambiguous.
 
 #### Laser operations: colors and stroke widths
 
-Cuttle reads the laser operation from color and stroke width. Widths are measured at physical size, after the `viewBox` scaling above.
+Cuttle reads the laser operation from color and stroke width.
 
 | Operation | SVG                                                                   |
 | --------- | --------------------------------------------------------------------- |
@@ -78,7 +78,7 @@ The SDK provides these values as `cuttle.laser`, so a plugin doesn't hard-code t
 - **`cuttle.laser.hairline(unit)`** — the stroke width for cut and score lines (0.01 in).
 - **`cuttle.laser.engraveMin(unit)`** — the thinnest stroke that engraves (0.02 in).
 
-`unit` is the SVG's user unit: `"in"`, `"mm"`, `"px"`, or `"pt"`. Any other unit throws. With one user unit = 1 mm:
+`unit` is the unit on the SVG's `width` and `height`: `"in"`, `"mm"`, `"px"`, or `"pt"`. Any other unit throws.
 
 ```js
 const cut = `<path fill="none" stroke="${cuttle.laser.colors.cut}" stroke-width="${cuttle.laser.hairline("mm")}" d="…"/>`;
@@ -86,14 +86,14 @@ const cut = `<path fill="none" stroke="${cuttle.laser.colors.cut}" stroke-width=
 
 `cuttle.laser` only supplies Cuttle's conventions; drawing the SVG is the plugin's job. [Map Picker](./map-picker/) and the [example plugin](./example-plugin/) use it.
 
-The result looks like this, with one user unit = 0.01 in, as above:
+A complete SVG looks like this:
 
 ```svg
-<svg xmlns="http://www.w3.org/2000/svg" width="8in" height="6in" viewBox="0 0 800 600">
-  <rect x="0" y="0" width="800" height="600" fill="none" stroke="#ff0000" stroke-width="1"/> <!-- cut -->
-  <path d="M100 300H700" fill="none" stroke="#0000ff" stroke-width="1"/> <!-- score -->
-  <path d="M100 400H700" fill="none" stroke="#000000" stroke-width="4"/> <!-- engrave line, 0.04 in -->
-  <circle cx="400" cy="150" r="50" fill="#000000"/>                      <!-- engrave fill -->
+<svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="150mm" viewBox="0 0 200 150">
+  <rect x="0" y="0" width="200" height="150" fill="none" stroke="#ff0000" stroke-width="0.254"/> <!-- cut -->
+  <path d="M25 75H175" fill="none" stroke="#0000ff" stroke-width="0.254"/> <!-- score -->
+  <path d="M25 100H175" fill="none" stroke="#000000" stroke-width="1"/>    <!-- engrave line, 1 mm -->
+  <circle cx="100" cy="40" r="12" fill="#000000"/>                         <!-- engrave fill -->
 </svg>
 ```
 

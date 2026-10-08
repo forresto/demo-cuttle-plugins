@@ -543,7 +543,8 @@
       let inputFileReader = null;
 
       function makePreviewImage(palette) {
-        // Each swatch is 10 × 10 mm; one user unit is 1 mm.
+        // Each swatch is 10 × 10 mm; the viewBox matches width/height, so
+        // coordinates are in mm.
         const size = 10;
         const width = size * palette.length;
         const rects = palette
