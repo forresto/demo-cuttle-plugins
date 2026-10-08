@@ -406,21 +406,22 @@
        * Laser operations, in Cuttle's colors. "fill" engraves the area itself
        * and is only offered for area categories.
        *
-       * Cuttle imports any stroke thinner than 0.02 in as a hairline. Cut and
-       * score are hairlines (0.01 in); engrave strokes must stay at or above
-       * 0.02 in (0.508 mm), or they come in as hairlines instead of engraving.
+       * The colors and stroke widths come from cuttle.laser. Cut and score are
+       * hairlines; engrave strokes must stay at or above
+       * cuttle.laser.engraveMin("mm"), or they come in as hairlines instead of
+       * engraving.
        */
-      const HAIRLINE_MM = 0.254; // 0.01 in
+      const HAIRLINE_MM = cuttle.laser.hairline("mm");
       const OPERATIONS = {
         off: { label: "Off" },
-        cut: { label: "Cut", color: "#ff0000" },
-        score: { label: "Score", color: "#0000ff" },
-        engrave: { label: "Engrave", color: "#000000" },
-        fill: { label: "Engrave fill", color: "#000000" },
+        cut: { label: "Cut", color: cuttle.laser.colors.cut },
+        score: { label: "Score", color: cuttle.laser.colors.score },
+        engrave: { label: "Engrave", color: cuttle.laser.colors.engrave },
+        fill: { label: "Engrave fill", color: cuttle.laser.colors.engrave },
       };
 
       // Listed in panel order. `width` is the engrave line width in millimeters,
-      // at least 0.6 mm so it stays clear of the 0.508 mm hairline threshold.
+      // at least 0.6 mm so it stays clear of cuttle.laser.engraveMin("mm").
       // Density comes from decluttering, which scales with frame size and detail.
       const CATEGORIES = [
         { id: "majorRoads", label: "Major roads", op: "score", width: 1 },
@@ -1257,7 +1258,9 @@
         for (const id of ["water", "parks", "buildings"]) {
           const { fills } = geometry.categories[id];
           if (ops[id] === "fill" && fills.length) {
-            paths.push(`<path fill="#000000" stroke="none" d="${pathData(fills, true)}"/>`);
+            paths.push(
+              `<path fill="${OPERATIONS.fill.color}" stroke="none" d="${pathData(fills, true)}"/>`,
+            );
           }
         }
         for (const id of [

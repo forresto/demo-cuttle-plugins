@@ -70,16 +70,30 @@ Cuttle reads the laser operation from color and stroke width. Widths are measure
 | Score     | blue `#0000ff` hairline stroke, no fill                               |
 | Engrave   | black `#000000` stroke at least 0.02 in wide, or black `#000000` fill |
 
-Any stroke thinner than 0.02 in (0.508 mm) is imported as a hairline, which is what cut and score lines are. Draw cut and score strokes at 0.01 in (0.254 mm). Keep engrave strokes comfortably at or above 0.02 in, or they come in as hairlines instead of engraved lines. [Map Picker](./map-picker/) and the [example plugin](./example-plugin/) follow these conventions.
+Any stroke thinner than 0.02 in (0.508 mm) is imported as a hairline, which is what cut and score lines are. Draw cut and score strokes at 0.01 in (0.254 mm). Keep engrave strokes comfortably at or above 0.02 in, or they come in as hairlines instead of engraved lines.
 
-For example, with one user unit = 0.01 in, as above:
+The SDK provides these values as `cuttle.laser`, so a plugin doesn't hard-code them:
+
+- **`cuttle.laser.colors.cut`**, **`.score`**, **`.engrave`** — the color for each operation.
+- **`cuttle.laser.hairline(unit)`** — the stroke width for cut and score lines (0.01 in).
+- **`cuttle.laser.engraveMin(unit)`** — the thinnest stroke that engraves (0.02 in).
+
+`unit` is the SVG's user unit: `"in"`, `"mm"`, `"px"`, or `"pt"`. Any other unit throws. With one user unit = 1 mm:
+
+```js
+const cut = `<path fill="none" stroke="${cuttle.laser.colors.cut}" stroke-width="${cuttle.laser.hairline("mm")}" d="…"/>`;
+```
+
+`cuttle.laser` only supplies Cuttle's conventions; drawing the SVG is the plugin's job. [Map Picker](./map-picker/) and the [example plugin](./example-plugin/) use it.
+
+The result looks like this, with one user unit = 0.01 in, as above:
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" width="8in" height="6in" viewBox="0 0 800 600">
   <rect x="0" y="0" width="800" height="600" fill="none" stroke="#ff0000" stroke-width="1"/> <!-- cut -->
-  <path d="M100 300H700" fill="none" stroke="#0000ff" stroke-width="1"/>                        <!-- score -->
-  <path d="M100 400H700" fill="none" stroke="#000000" stroke-width="4"/>                        <!-- engrave line, 0.04 in -->
-  <circle cx="400" cy="150" r="50" fill="#000000"/>                                               <!-- engrave fill -->
+  <path d="M100 300H700" fill="none" stroke="#0000ff" stroke-width="1"/> <!-- score -->
+  <path d="M100 400H700" fill="none" stroke="#000000" stroke-width="4"/> <!-- engrave line, 0.04 in -->
+  <circle cx="400" cy="150" r="50" fill="#000000"/>                      <!-- engrave fill -->
 </svg>
 ```
 
