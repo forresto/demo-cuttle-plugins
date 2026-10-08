@@ -77,7 +77,7 @@ value._image = "data:image/svg+xml," + encodeURIComponent(svg);
 Cuttle imports geometry only:
 
 - `path`, `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `g`, and `use` are imported, with their `transform`.
-- `<text>`, `<image>`, clip paths, and gradients are skipped. `opacity`, `display`, `visibility`, and dashes are ignored, so hidden elements still import. Pass text as a string field in the value and let Cuttle set it.
+- `<text>`, `<image>`, clip paths, and gradients are skipped. `opacity`, `display`, `visibility`, and dashes are ignored, so hidden elements still import.
 - Write `fill="none"` on every stroked shape. SVG's default fill is black, which imports as an engrave fill.
 - Use plain numbers for coordinates: `x="10"`, not `x="10mm"`.
 
