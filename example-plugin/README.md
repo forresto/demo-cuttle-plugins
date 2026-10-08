@@ -1,6 +1,6 @@
 # Example Plugin
 
-A minimal Cuttle Customizer Plugin and a visual reference for plugin UI.
+A minimal Cuttle Parameter Plugin and a visual reference for plugin UI.
 
 The layout and CSS are a starting place, not a template. Copy the parts a plugin
 uses rather than adopting every style.

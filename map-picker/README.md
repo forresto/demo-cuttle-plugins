@@ -1,6 +1,6 @@
 # Map Picker
 
-A Cuttle Customizer Plugin that turns an OpenStreetMap area into laser-ready street map vectors.
+A Cuttle Parameter Plugin that turns an OpenStreetMap area into laser-ready street map vectors.
 
 ## Live plugin
 
@@ -57,30 +57,30 @@ https://forresto.github.io/demo-cuttle-plugins/map-picker/
 
 Each layer comes from the Shortbread vector tiles and gets one operation, in Cuttle's colors:
 
-| Operation | SVG |
-|---|---|
-| Cut | red `#ff0000` hairline stroke, 0.254 mm (0.01 in) |
-| Score | blue `#0000ff` hairline stroke, 0.254 mm (0.01 in) |
-| Engrave | black `#000000` stroke, as a thick line at the layer's width (0.6–1 mm) |
+| Operation    | SVG                                                                           |
+| ------------ | ----------------------------------------------------------------------------- |
+| Cut          | red `#ff0000` hairline stroke, 0.254 mm (0.01 in)                             |
+| Score        | blue `#0000ff` hairline stroke, 0.254 mm (0.01 in)                            |
+| Engrave      | black `#000000` stroke, as a thick line at the layer's width (0.6–1 mm)       |
 | Engrave fill | black `#000000` fill, no stroke (areas only: water, buildings, parks & woods) |
-| Off | omitted |
+| Off          | omitted                                                                       |
 
 Cuttle imports strokes thinner than 0.02 in (0.508 mm) as hairlines, so engrave widths stay at 0.6 mm or more to come in as engraved lines rather than hairlines.
 
-| Layer | Source |
-|---|---|
-| Major roads | `streets` motorway to tertiary, including links, plus airport runways and taxiways |
-| Local roads | `streets` unclassified, residential, living street, service, pedestrian, busway |
-| Paths | `streets` footway, path, cycleway, steps, track |
-| Railways | `streets` rail, tram, light rail, subway, etc., except tunnels |
-| Water | `ocean` and `water_polygons` |
-| Rivers & streams | `water_lines` centerlines, stopped at the shore of water areas (drawn whole when Water is off) |
-| Piers & dams | `pier_lines`, `pier_polygons`, `dam_lines`, `dam_polygons`; cut out of filled Water unless this layer is off |
-| Bridges | `bridges` deck outlines; cut out of filled Water unless this layer is off |
-| Ferries | `ferries` routes |
-| Buildings | `buildings`, only when the area is small enough for zoom 14 tiles |
-| Parks & woods | `land` park, forest, wood, grass, meadow, golf course |
-| Border | the frame rectangle (no fill) |
+| Layer            | Source                                                                                                       |
+| ---------------- | ------------------------------------------------------------------------------------------------------------ |
+| Major roads      | `streets` motorway to tertiary, including links, plus airport runways and taxiways                           |
+| Local roads      | `streets` unclassified, residential, living street, service, pedestrian, busway                              |
+| Paths            | `streets` footway, path, cycleway, steps, track                                                              |
+| Railways         | `streets` rail, tram, light rail, subway, etc., except tunnels                                               |
+| Water            | `ocean` and `water_polygons`                                                                                 |
+| Rivers & streams | `water_lines` centerlines, stopped at the shore of water areas (drawn whole when Water is off)               |
+| Piers & dams     | `pier_lines`, `pier_polygons`, `dam_lines`, `dam_polygons`; cut out of filled Water unless this layer is off |
+| Bridges          | `bridges` deck outlines; cut out of filled Water unless this layer is off                                    |
+| Ferries          | `ferries` routes                                                                                             |
+| Buildings        | `buildings`, only when the area is small enough for zoom 14 tiles                                            |
+| Parks & woods    | `land` park, forest, wood, grass, meadow, golf course                                                        |
+| Border           | the frame rectangle (no fill)                                                                                |
 
 Unknown street kinds are dropped.
 
@@ -88,7 +88,7 @@ Areas are merged first: the pieces of a lake, park, or building from neighboring
 
 ## Dependencies
 
-- Cuttle Customizer Plugin SDK v1
+- Cuttle Parameter Plugin SDK v1
 - Leaflet 1.9.4
 - [Clipper2](https://github.com/AngusJohnson/Clipper2) via `clipper2-ts` 2.0.1-18 (Boost license) for merging, clipping, and simplifying
 - OpenStreetMap raster tiles, Shortbread vector tiles, and Nominatim search

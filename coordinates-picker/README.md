@@ -1,6 +1,6 @@
 # OSM Place Picker
 
-A Cuttle Customizer Plugin that turns a place search into geographic coordinates.
+A Cuttle Parameter Plugin that turns a place search into geographic coordinates.
 
 ## Live plugin
 
@@ -49,7 +49,7 @@ The plugin writes:
 
 ## Dependencies
 
-- Cuttle Customizer Plugin SDK v1
+- Cuttle Parameter Plugin SDK v1
 - Leaflet 1.9.4
 - OpenStreetMap map tiles
 - OpenStreetMap Nominatim search

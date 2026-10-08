@@ -1,6 +1,6 @@
 # Image to Palette
 
-Cuttle Customizer plugin that extracts a color palette from an uploaded image.
+Cuttle Parameter plugin that extracts a color palette from an uploaded image.
 
 ## Live
 

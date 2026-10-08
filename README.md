@@ -1,8 +1,8 @@
 > ⚠️ pre-release preview, won't work quite yet 😉
 
-# Cuttle Customizer Plugin Examples
+# Cuttle Parameter Plugin Examples
 
-Small, self-contained examples of HTML Input Plugins for [Cuttle](https://cuttle.xyz/).
+Small, self-contained examples of Parameter Plugins for [Cuttle](https://cuttle.xyz/).
 
 The examples are intended to be useful as both **working plugins** and **recipes for AI assistants** that are helping someone build a new Cuttle plugin.
 
@@ -20,7 +20,7 @@ The examples are intended to be useful as both **working plugins** and **recipes
 
 ## Plugin SDK
 
-Plugins use the Cuttle Customizer Plugin SDK:
+Plugins use the Cuttle Parameter Plugin SDK:
 
 ```html
 <!-- ⚠️ URL might change before launch. -->
@@ -107,14 +107,14 @@ Examples load third-party libraries from version-pinned CDNs, such as:
 
 ## Hosting
 
-Cuttle Customizer Plugins are ordinary web pages loaded from an HTTPS URL. For example,
+Cuttle Parameter Plugins are ordinary web pages loaded from an HTTPS URL. For example,
 
 `https://forresto.github.io/demo-cuttle-plugins/image-to-palette/index.html`
 
 Options for hosting:
 
 - [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site) (free)
-- [ChatGPT Sites](https://help.openai.com/en/articles/20001339-creating-and-using-chatgpt-sites) (with paid plans)
+- [ChatGPT Sites](https://help.openai.com/en/articles/20001339-creating-and-using-chatgpt-sites) (with Work or Codex paid plans)
 
 ## Reading plugin values
 
@@ -151,12 +151,13 @@ Then describe the Cuttle parameter and UI you want.
 A useful workflow is:
 
 1. Inspect the closest example.
-2. Preserve the Cuttle Customizer SDK protocol.
+2. Preserve the Cuttle Parameter Plugins SDK protocol.
 3. Adapt the value schema to the requested parameter.
 4. Keep the plugin self-contained in one HTML file.
 5. Add a basic README.md with your plugin's index.html.
 6. Publish the plugin where it can be accessed with a stable HTTPS URL.
 7. Return the live URL.
+   - (If the AI agent does have the capability to publish HTML to a stable HTTPS URL, it should return the HTML code and a hint about hosting.)
 
 Each example should document:
 
