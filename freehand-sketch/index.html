@@ -72,7 +72,7 @@
       }
       .row {
         display: grid;
-        grid-template-columns: minmax(90px, 1fr) minmax(0, 2fr);
+        grid-template-columns: minmax(90px, 1fr) minmax(0, 2fr) 3.5ch;
         gap: 10px;
         align-items: center;
       }
@@ -123,6 +123,7 @@
       output {
         font-family: var(--mono);
         font-size: 13px;
+        text-align: right;
       }
       :focus-visible {
         outline: 2px solid var(--blue);
@@ -139,8 +140,11 @@
       }
       @media (max-width: 360px) {
         .row {
-          grid-template-columns: 1fr;
-          gap: 2px;
+          grid-template-columns: minmax(0, 1fr) 3.5ch;
+          gap: 2px 10px;
+        }
+        .row label {
+          grid-column: 1 / -1;
         }
       }
     </style>
@@ -155,34 +159,35 @@
         <div class="panel">
           <div class="segmented" role="group" aria-label="Tool">
             <button id="toolPen" class="primary" type="button" aria-pressed="true" title="Pen (P)">
-              Pen</button
-            ><button id="toolErase" type="button" aria-pressed="false" title="Erase (E)">Erase</button>
+              Pen
+            </button>
+            <button id="toolErase" type="button" aria-pressed="false" title="Erase (E)">
+              Erase
+            </button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="row">
+            <label for="size">Stroke size</label>
+            <input id="size" type="range" min="1" max="80" value="12" />
+            <output id="sizeOut" for="size">12</output>
           </div>
           <div class="row">
-            <label for="size">Stroke size</label
-            ><input id="size" type="range" min="1" max="80" value="12" /><output id="sizeOut"
-              >12</output
-            >
+            <label for="smoothing">Smoothing</label>
+            <input id="smoothing" type="range" min="0" max="100" value="50" />
+            <output id="smoothOut" for="smoothing">0.50</output>
           </div>
           <div class="row">
-            <label for="smoothing">Smoothing</label
-            ><input id="smoothing" type="range" min="0" max="100" value="50" /><output
-              id="smoothOut"
-              >0.50</output
-            >
-          </div>
-          <div class="row">
-            <label for="thinning">Pressure thinning</label
-            ><input id="thinning" type="range" min="0" max="100" value="50" /><output id="thinOut"
-              >0.50</output
-            >
+            <label for="thinning">Pressure thinning</label>
+            <input id="thinning" type="range" min="0" max="100" value="50" />
+            <output id="thinOut" for="thinning">0.50</output>
           </div>
         </div>
         <div class="panel">
           <p id="summary" class="note">No strokes yet.</p>
           <div class="actions">
-            <button id="undo" type="button" disabled>Undo</button
-            ><button id="clear" type="button">Clear</button>
+            <button id="undo" type="button" disabled>Undo</button>
+            <button id="clear" type="button">Clear</button>
           </div>
           <button id="save" class="primary" type="button">Save strokes to Cuttle</button>
           <p class="note">
@@ -200,73 +205,110 @@
       const ctx = canvas.getContext("2d");
       const W = canvas.width,
         H = canvas.height;
-      let strokes = [];
-      let active = null;
-      let tool = "pen";
-      let history = [];
-      // Current erase gesture: { last: [x, y], pushed: bool }
-      let erasing = null;
-      let hover = null;
+      const HINTS = {
+        pen: "Draw with a mouse, finger, or stylus.",
+        erase: "Drag over strokes to erase.",
+      };
 
-      function settings() {
+      // Committed strokes are arrays of [x, y, pressure] that are never mutated, so undo
+      // snapshots can share them and the caches below can key on them.
+      let strokes = [];
+      let history = [];
+      let active = null; // Stroke being drawn
+      let erasing = null; // Current erase gesture: { last: [x, y], pushed: bool }
+      let hover = null; // Pointer position, for the eraser ring
+      let tool = "pen";
+      let opts; // perfect-freehand options from the sliders
+      let outlines = new WeakMap(); // stroke -> { d, path, box }; reset when opts change
+      const bounds = new WeakMap(); // stroke -> [minX, minY, maxX, maxY] of input points
+      // Strokes are in page units (0..W, 0..H). The view zooms out around the page centre
+      // by `zoom` (>= 1) so ink near or past the edge stays visible.
+      let zoom = 1;
+
+      function readSettings() {
         return {
           size: Number($("size").value),
           smoothing: Number($("smoothing").value) / 100,
           thinning: Number($("thinning").value) / 100,
           streamline: 0.5,
-          simulatePressure: true,
-          last: true,
         };
       }
 
       const average = (a, b) => (a + b) / 2;
 
+      // From the perfect-freehand README.
       function getSvgPathFromStroke(points) {
         const len = points.length;
+        if (len < 4) return "";
 
-        if (!len) {
-          return "";
+        let a = points[0];
+        let b = points[1];
+        const c = points[2];
+        let result = `M${a[0].toFixed(2)},${a[1].toFixed(2)} Q${b[0].toFixed(2)},${b[1].toFixed(2)} ${average(b[0], c[0]).toFixed(2)},${average(b[1], c[1]).toFixed(2)} T`;
+
+        for (let i = 2, max = len - 1; i < max; i++) {
+          a = points[i];
+          b = points[i + 1];
+          result += `${average(a[0], b[0]).toFixed(2)},${average(a[1], b[1]).toFixed(2)} `;
         }
 
-        const first = points[0];
-        let result = `M${first[0].toFixed(3)},${first[1].toFixed(3)}Q`;
+        return result + "Z";
+      }
 
-        for (let i = 0, max = len - 1; i < max; i++) {
-          const a = points[i];
-          const b = points[i + 1];
-          result += `${a[0].toFixed(3)},${a[1].toFixed(3)} ${average(a[0], b[0]).toFixed(
-            3,
-          )},${average(a[1], b[1]).toFixed(3)} `;
+      // Mice report a constant 0.5; let perfect-freehand simulate pressure from velocity then.
+      const hasRealPressure = (stroke) => stroke.some((p) => p[2] !== 0.5);
+
+      function outline(stroke, last = true) {
+        const points = getStroke(stroke, {
+          ...opts,
+          simulatePressure: !hasRealPressure(stroke),
+          last,
+        });
+        const d = getSvgPathFromStroke(points);
+        const box = [Infinity, Infinity, -Infinity, -Infinity];
+        for (const [x, y] of points) {
+          box[0] = Math.min(box[0], x);
+          box[1] = Math.min(box[1], y);
+          box[2] = Math.max(box[2], x);
+          box[3] = Math.max(box[3], y);
         }
-
-        result += "Z";
-
-        return result;
+        return { d, path: new Path2D(d), box };
       }
 
-      function outlinePath(points, opts = settings()) {
-        if (!points.length) return "";
-        return getSvgPathFromStroke(getStroke(points, opts));
+      function cachedOutline(stroke) {
+        let o = outlines.get(stroke);
+        if (!o) outlines.set(stroke, (o = outline(stroke)));
+        return o;
       }
 
-      function drawPath(d) {
-        if (d) ctx.fill(new Path2D(d));
+      let renderQueued = false;
+      function requestRender() {
+        if (renderQueued) return;
+        renderQueued = true;
+        requestAnimationFrame(render);
       }
 
       function render() {
-        ctx.clearRect(0, 0, W, H);
+        renderQueued = false;
+        const s = 1 / zoom;
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.fillStyle = "#fff";
         ctx.fillRect(0, 0, W, H);
+        ctx.setTransform(s, 0, 0, s, (W / 2) * (1 - s), (H / 2) * (1 - s));
         ctx.fillStyle = "#171717";
-        for (const points of strokes) drawPath(outlinePath(points));
-        if (active) drawPath(outlinePath(active));
+        for (const stroke of strokes) ctx.fill(cachedOutline(stroke).path);
+        if (active) ctx.fill(outline(active, false).path);
         if (hover && (tool === "erase" || erasing)) {
           ctx.beginPath();
           ctx.arc(hover[0], hover[1], eraserRadius(), 0, Math.PI * 2);
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 1.5 * zoom;
           ctx.strokeStyle = "rgba(0, 0, 0, 0.45)";
           ctx.stroke();
         }
+      }
+
+      // Call whenever strokes or history change.
+      function updateUI() {
         const count = strokes.reduce((n, stroke) => n + stroke.length, 0);
         $("summary").textContent = strokes.length
           ? `${strokes.length} stroke${strokes.length === 1 ? "" : "s"} · ${count} points`
@@ -284,9 +326,8 @@
           $(id).setAttribute("aria-pressed", String(tool === t));
         }
         canvas.classList.toggle("erasing", tool === "erase");
-        $("hint").textContent =
-          tool === "erase" ? "Drag over strokes to erase." : "Draw with a mouse, finger, or stylus.";
-        render();
+        $("hint").textContent = HINTS[tool];
+        requestRender();
       }
       $("toolPen").onclick = () => setTool("pen");
       $("toolErase").onclick = () => setTool("erase");
@@ -298,8 +339,8 @@
         else if (key === "e") setTool("erase");
       });
 
-      const snapshot = () => history.push(strokes.map((s) => s.slice()));
-      const eraserRadius = () => Math.max(6, settings().size);
+      const snapshot = () => history.push(strokes.slice());
+      const eraserRadius = () => Math.max(6, opts.size);
 
       function pointSegDist(p, a, b) {
         const dx = b[0] - a[0],
@@ -325,69 +366,121 @@
         );
       }
 
+      function getBounds(stroke) {
+        let b = bounds.get(stroke);
+        if (!b) {
+          b = [Infinity, Infinity, -Infinity, -Infinity];
+          for (const [x, y] of stroke) {
+            b[0] = Math.min(b[0], x);
+            b[1] = Math.min(b[1], y);
+            b[2] = Math.max(b[2], x);
+            b[3] = Math.max(b[3], y);
+          }
+          bounds.set(stroke, b);
+        }
+        return b;
+      }
+
+      // Smallest zoom around the page centre (1 = the page) whose box contains all stroke
+      // outlines, each grown by `margin` page units. 0 when there are no strokes.
+      function inkZoom(margin) {
+        let z = 0;
+        for (const stroke of strokes) {
+          const [x0, y0, x1, y1] = cachedOutline(stroke).box;
+          z = Math.max(
+            z,
+            (W / 2 - x0 + margin) / (W / 2),
+            (x1 - W / 2 + margin) / (W / 2),
+            (H / 2 - y0 + margin) / (H / 2),
+            (y1 - H / 2 + margin) / (H / 2),
+          );
+        }
+        return z;
+      }
+
+      // Grow the view when ink comes near the edge; shrink back (never below the page) when
+      // it's erased. Only call at rest so the canvas doesn't move under the pointer.
+      const EDGE_MARGIN = 0.04 * W;
+      function fitView() {
+        zoom = Math.max(1, inkZoom(EDGE_MARGIN));
+      }
+
+      // Split a stroke where it comes within r of segment a–b. Returns null if untouched.
+      function splitStroke(original, a, b, r) {
+        // Subdivide long segments near the eraser so cuts stay local on sparse strokes.
+        const stroke = [original[0]];
+        for (let i = 1; i < original.length; i++) {
+          const p = original[i - 1],
+            q = original[i];
+          const n = Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / (r / 2));
+          if (n > 1 && segSegDist(p, q, a, b) <= r) {
+            for (let k = 1; k < n; k++) stroke.push(p.map((v, j) => v + ((q[j] - v) * k) / n));
+          }
+          stroke.push(q);
+        }
+        let hit = false;
+        const runs = [];
+        let run = [];
+        for (const p of stroke) {
+          if (pointSegDist(p, a, b) <= r) {
+            hit = true;
+            if (run.length) runs.push(run);
+            run = [];
+            continue;
+          }
+          if (run.length && segSegDist(run[run.length - 1], p, a, b) <= r) {
+            hit = true;
+            runs.push(run);
+            run = [];
+          }
+          run.push(p);
+        }
+        if (!hit) return null;
+        if (run.length) runs.push(run);
+        return runs.filter((run) => run.length >= 2);
+      }
+
       // Remove the parts of strokes within r of segment a–b, splitting strokes where cut.
       function eraseSegment(a, b, r) {
+        const minX = Math.min(a[0], b[0]) - r,
+          minY = Math.min(a[1], b[1]) - r,
+          maxX = Math.max(a[0], b[0]) + r,
+          maxY = Math.max(a[1], b[1]) + r;
         let changed = false;
-        const next = strokes.flatMap((original) => {
-          // Subdivide long segments near the eraser so cuts stay local on sparse strokes.
-          const stroke = [original[0]];
-          for (let i = 1; i < original.length; i++) {
-            const p = original[i - 1],
-              q = original[i];
-            const n = Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / (r / 2));
-            if (n > 1 && segSegDist(p, q, a, b) <= r) {
-              for (let k = 1; k < n; k++) stroke.push(p.map((v, j) => v + ((q[j] - v) * k) / n));
-            }
-            stroke.push(q);
-          }
-          const runs = [];
-          let run = [];
-          for (let i = 0; i < stroke.length; i++) {
-            const p = stroke[i];
-            if (pointSegDist(p, a, b) <= r) {
-              changed = true;
-              if (run.length) runs.push(run);
-              run = [];
-              continue;
-            }
-            if (run.length && segSegDist(run[run.length - 1], p, a, b) <= r) {
-              changed = true;
-              runs.push(run);
-              run = [];
-            }
-            run.push(p);
-          }
-          if (run.length) runs.push(run);
-          return runs.filter((run) => run.length >= 2);
+        const next = strokes.flatMap((stroke) => {
+          const [x0, y0, x1, y1] = getBounds(stroke);
+          if (x1 < minX || x0 > maxX || y1 < minY || y0 > maxY) return [stroke];
+          const runs = splitStroke(stroke, a, b, r);
+          if (!runs) return [stroke];
+          changed = true;
+          return runs;
         });
-        if (!changed) return false;
+        if (!changed) return;
         if (!erasing.pushed) {
           snapshot();
           erasing.pushed = true;
         }
         strokes = next;
-        return true;
+        updateUI();
       }
 
       function updateSettings() {
-        $("sizeOut").textContent = $("size").value;
-        $("smoothOut").textContent = (Number($("smoothing").value) / 100).toFixed(2);
-        $("thinOut").textContent = (Number($("thinning").value) / 100).toFixed(2);
-        render();
+        opts = readSettings();
+        outlines = new WeakMap();
+        $("sizeOut").textContent = opts.size;
+        $("smoothOut").textContent = opts.smoothing.toFixed(2);
+        $("thinOut").textContent = opts.thinning.toFixed(2);
+        fitView();
+        requestRender();
       }
       for (const id of ["size", "smoothing", "thinning"]) {
         $(id).addEventListener("input", updateSettings);
       }
 
-      function pointFromEvent(event) {
-        const rect = canvas.getBoundingClientRect();
-        const pressure =
-          event.pointerType === "mouse" && event.pressure === 0 ? 0.5 : event.pressure || 0.5;
-        return [
-          ((event.clientX - rect.left) * W) / rect.width,
-          ((event.clientY - rect.top) * H) / rect.height,
-          pressure,
-        ];
+      function pointFromEvent(event, rect) {
+        const cx = ((event.clientX - rect.left) * W) / rect.width;
+        const cy = ((event.clientY - rect.top) * H) / rect.height;
+        return [W / 2 + (cx - W / 2) * zoom, H / 2 + (cy - H / 2) * zoom, event.pressure || 0.5];
       }
 
       const isStylusEraser = (event) => event.pointerType === "pen" && (event.buttons & 32) !== 0;
@@ -396,7 +489,7 @@
         if (event.button !== undefined && event.button !== 0 && !isStylusEraser(event)) return;
         event.preventDefault();
         canvas.setPointerCapture(event.pointerId);
-        const p = pointFromEvent(event);
+        const p = pointFromEvent(event, canvas.getBoundingClientRect());
         hover = p;
         if (tool === "erase" || isStylusEraser(event)) {
           erasing = { last: p, pushed: false };
@@ -405,50 +498,52 @@
           snapshot();
           active = [p];
         }
-        render();
+        requestRender();
       });
 
       canvas.addEventListener("pointermove", (event) => {
-        const events = event.getCoalescedEvents?.().length ? event.getCoalescedEvents() : [event];
-        hover = pointFromEvent(event);
+        const rect = canvas.getBoundingClientRect();
+        const coalesced = event.getCoalescedEvents?.();
+        const events = coalesced?.length ? coalesced : [event];
+        hover = pointFromEvent(event, rect);
         if (erasing) {
           event.preventDefault();
           for (const e of events) {
-            const p = pointFromEvent(e);
+            const p = pointFromEvent(e, rect);
             eraseSegment(erasing.last, p, eraserRadius());
             erasing.last = p;
           }
-          render();
+          requestRender();
           return;
         }
         if (!active) {
-          if (tool === "erase") render();
+          if (tool === "erase") requestRender();
           return;
         }
         event.preventDefault();
         for (const e of events) {
-          const p = pointFromEvent(e);
+          const p = pointFromEvent(e, rect);
           const prev = active[active.length - 1];
           if (Math.hypot(p[0] - prev[0], p[1] - prev[1]) > 0.25) active.push(p);
         }
-        render();
+        requestRender();
       });
 
       canvas.addEventListener("pointerleave", () => {
         hover = null;
-        if (tool === "erase") render();
+        if (tool === "erase") requestRender();
       });
 
       function finishStroke() {
-        if (erasing) {
-          erasing = null;
-          render();
+        erasing = null;
+        if (active) {
+          if (active.length === 1) active.push([...active[0]]);
+          strokes.push(active);
+          active = null;
+          updateUI();
         }
-        if (!active) return;
-        if (active.length === 1) active.push([...active[0]]);
-        strokes.push(active);
-        active = null;
-        render();
+        fitView();
+        requestRender();
       }
       canvas.addEventListener("pointerup", finishStroke);
       canvas.addEventListener("pointercancel", finishStroke);
@@ -456,33 +551,51 @@
       $("undo").onclick = () => {
         if (!history.length) return;
         strokes = history.pop();
-        render();
+        updateUI();
+        fitView();
+        requestRender();
       };
       $("clear").onclick = () => {
         if (strokes.length) snapshot();
         strokes = [];
         active = null;
-        render();
+        updateUI();
+        fitView();
+        requestRender();
       };
 
       function makeSvg() {
         // One <path>, with separate subpaths. Intentionally no union/boolean operation.
         const d = strokes
-          .map((points) => outlinePath(points))
+          .map((stroke) => cachedOutline(stroke).d)
           .filter(Boolean)
           .join(" ");
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="150mm" viewBox="0 0 ${W} ${H}"><path d="${d}" fill="#000000" fill-rule="nonzero"/></svg>`;
+        // Cuttle centres the image, so frame it by a zoom factor around the page centre
+        // (keeping 4:3 and 200x150mm per page) rather than a tight bounding box.
+        const z = inkZoom(0) || 1;
+        const viewBox = [W / 2 - (W / 2) * z, H / 2 - (H / 2) * z, W * z, H * z]
+          .map(round)
+          .join(" ");
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${round(200 * z)}mm" height="${round(150 * z)}mm" viewBox="${viewBox}"><path d="${d}" fill="#000000" fill-rule="nonzero"/></svg>`;
+      }
+
+      // Keep finite points; a stroke needs at least two, so single points become dots.
+      function parseStroke(stroke) {
+        if (!Array.isArray(stroke)) return null;
+        const points = [];
+        for (const p of stroke) {
+          if (!Array.isArray(p)) continue;
+          const [x, y, pressure] = [Number(p[0]), Number(p[1]), Number(p[2])];
+          if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+          points.push([x, y, Number.isFinite(pressure) ? pressure : 0.5]);
+        }
+        if (points.length === 1) points.push([...points[0]]);
+        return points.length ? points : null;
       }
 
       cuttle.ready((value) => {
         if (value && Array.isArray(value.strokes)) {
-          strokes = value.strokes
-            .filter(Array.isArray)
-            .map((stroke) =>
-              stroke
-                .filter((p) => Array.isArray(p) && p.length >= 2)
-                .map((p) => [Number(p[0]), Number(p[1]), Number(p[2] ?? 0.5)]),
-            );
+          strokes = value.strokes.map(parseStroke).filter(Boolean);
           history = [];
           if (Number.isFinite(value.size)) $("size").value = Math.max(1, Math.min(80, value.size));
           if (Number.isFinite(value.smoothing))
@@ -491,24 +604,26 @@
             $("thinning").value = Math.round(Math.max(0, Math.min(1, value.thinning)) * 100);
         }
         updateSettings();
+        updateUI();
       });
+
+      const round = (v) => Math.round(v * 100) / 100;
 
       $("save").onclick = () => {
         const svg = makeSvg();
-        const value = {
-          strokes: strokes.map((stroke) => stroke.map((p) => [...p])),
-          size: settings().size,
-          smoothing: settings().smoothing,
-          thinning: settings().thinning,
-          svg,
+        cuttle.setValueAndClose({
+          strokes: strokes.map((stroke) => stroke.map((p) => p.map(round))),
+          size: opts.size,
+          smoothing: opts.smoothing,
+          thinning: opts.thinning,
           _image: "data:image/svg+xml," + encodeURIComponent(svg),
-          _text: `${strokes.length} freehand stroke${strokes.length === 1 ? "" : "s"}`,
-        };
-        cuttle.setValueAndClose(value);
+          _text: `${strokes.length} stroke${strokes.length === 1 ? "" : "s"}`,
+        });
       };
 
       // Render immediately; don't wait for cuttle.ready().
-      render();
+      updateSettings();
+      updateUI();
     </script>
   </body>
 </html>
