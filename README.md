@@ -11,6 +11,7 @@ The examples are both **working plugins** and **recipes for AI assistants** that
 | Example                                     | Description                                                                                   | Live                                                                                 |
 | ------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
 | [Coordinates Picker](./coordinates-picker/) | Search OpenStreetMap, choose a place, then fine-tune its coordinates with a draggable marker. | [Open](https://forresto.github.io/demo-cuttle-plugins/coordinates-picker/index.html) |
+| [Freehand Sketch](./freehand-sketch)        | Doodle something with "perfect-freehand" strokes.                                             | [Open](https://forresto.github.io/demo-cuttle-plugins/freehand-sketch/index.html)    |
 | [Image to Palette](./image-to-palette/)     | Choose an image and extract a palette of colors for use as a Cuttle parameter.                | [Open](https://forresto.github.io/demo-cuttle-plugins/image-to-palette/index.html)   |
 | [Map Picker](./map-picker/)                 | Frame an OpenStreetMap area and save it as laser-ready SVG vectors.                           | [Open](https://forresto.github.io/demo-cuttle-plugins/map-picker/index.html)         |
 
@@ -52,7 +53,7 @@ Inside an iframe that isn't Cuttle, such as an AI tool's preview pane, `cuttle.r
 Cuttle treats two fields of the value specially:
 
 - **`value._text`** — optional one-line summary used as the parameter's preview text in Cuttle.
-- **`value._image`** — optional preview image, as a data URL (JPEG, PNG, or SVG). An SVG is also importable as vector artwork.
+- **`value._image`** — optional image output, as a data URL (JPEG, PNG, or SVG). Cuttle shows it as the parameter's preview, and an SVG is importable as vector artwork. Put the SVG only here; don't also save it, or its markup, under another key.
 
 #### Returning an SVG as `_image`
 
@@ -66,7 +67,7 @@ Give the SVG `width` and `height` with a unit, `mm` or `in`, and use the same nu
 
 Every coordinate and stroke width in the SVG is then in that unit; here, millimeters. Without a unit on `width` and `height`, the physical size is ambiguous.
 
-Encode the SVG string as a data URL with `encodeURIComponent`. The `xmlns` attribute is required.
+Encode the SVG string as a data URL with `encodeURIComponent`. The `xmlns` attribute is required. This data URL is the only copy of the SVG in the value.
 
 ```js
 value._image = "data:image/svg+xml," + encodeURIComponent(svg);
