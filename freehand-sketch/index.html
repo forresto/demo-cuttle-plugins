@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Freehand Stroke</title>
+    <script src="https://cuttle.xyz/parameter-plugin/v1.js"></script>
+    <style>
+      :root {
+        --bg: #fafafa;
+        --panel: #f3f3f3;
+        --field: #e6e6e6;
+        --ink: rgba(0, 0, 0, 0.85);
+        --ink2: rgba(0, 0, 0, 0.6);
+        --line: rgba(0, 0, 0, 0.1);
+        --blue: hsl(200, 100%, 50%);
+        --blue-h: hsl(200, 100%, 58%);
+        --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 12px;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          16px/1.4 system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      .layout {
+        display: grid;
+        gap: 12px;
+        align-items: start;
+      }
+      .canvas-wrap {
+        min-width: 0;
+      }
+      canvas {
+        display: block;
+        width: 100%;
+        aspect-ratio: 4/3;
+        touch-action: none;
+        background: #fff;
+        border-radius: 10px;
+        box-shadow:
+          0 0 0 1px var(--line),
+          0 4px 16px #00000014;
+        cursor: crosshair;
+      }
+      canvas.erasing {
+        cursor: none;
+      }
+      .hint {
+        margin: 8px 2px 0;
+        color: var(--ink2);
+        font-size: 13px;
+      }
+      .controls {
+        display: grid;
+        gap: 12px;
+        min-width: 0;
+      }
+      .panel {
+        display: grid;
+        gap: 8px;
+        background: var(--panel);
+        border-radius: 10px;
+        padding: 12px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: minmax(90px, 1fr) minmax(0, 2fr);
+        gap: 10px;
+        align-items: center;
+      }
+      label {
+        font-size: 14px;
+      }
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--blue);
+      }
+      button {
+        font: inherit;
+        color: inherit;
+        border: 0;
+        border-radius: 7px;
+        background: var(--field);
+        padding: 8px 12px;
+        min-height: 38px;
+        cursor: pointer;
+      }
+      button:hover:not(:disabled) {
+        background: #dedede;
+      }
+      button:disabled {
+        opacity: 0.45;
+        cursor: default;
+      }
+      .primary {
+        background: var(--blue);
+        color: white;
+        font-weight: 600;
+      }
+      .primary:hover:not(:disabled) {
+        background: var(--blue-h);
+      }
+      .actions,
+      .segmented {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+      .note {
+        margin: 0;
+        color: var(--ink2);
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+      output {
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+      :focus-visible {
+        outline: 2px solid var(--blue);
+        outline-offset: 2px;
+      }
+      @media (min-width: 760px) {
+        .layout {
+          grid-template-columns: minmax(0, 1fr) 260px;
+        }
+        .canvas-wrap {
+          position: sticky;
+          top: 12px;
+        }
+      }
+      @media (max-width: 360px) {
+        .row {
+          grid-template-columns: 1fr;
+          gap: 2px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <section class="canvas-wrap">
+        <canvas id="canvas" width="1000" height="750" aria-label="Draw freehand strokes"></canvas>
+        <p id="hint" class="hint">Draw with a mouse, finger, or stylus.</p>
+      </section>
+      <section class="controls">
+        <div class="panel">
+          <div class="segmented" role="group" aria-label="Tool">
+            <button id="toolPen" class="primary" type="button" aria-pressed="true" title="Pen (P)">
+              Pen</button
+            ><button id="toolErase" type="button" aria-pressed="false" title="Erase (E)">Erase</button>
+          </div>
+          <div class="row">
+            <label for="size">Stroke size</label
+            ><input id="size" type="range" min="1" max="80" value="12" /><output id="sizeOut"
+              >12</output
+            >
+          </div>
+          <div class="row">
+            <label for="smoothing">Smoothing</label
+            ><input id="smoothing" type="range" min="0" max="100" value="50" /><output
+              id="smoothOut"
+              >0.50</output
+            >
+          </div>
+          <div class="row">
+            <label for="thinning">Pressure thinning</label
+            ><input id="thinning" type="range" min="0" max="100" value="50" /><output id="thinOut"
+              >0.50</output
+            >
+          </div>
+        </div>
+        <div class="panel">
+          <p id="summary" class="note">No strokes yet.</p>
+          <div class="actions">
+            <button id="undo" type="button" disabled>Undo</button
+            ><button id="clear" type="button">Clear</button>
+          </div>
+          <button id="save" class="primary" type="button">Save strokes to Cuttle</button>
+          <p class="note">
+            Saves stroke points and the rendered SVG. Uses
+            <a href="https://github.com/steveruizok/perfect-freehand">perfect-freehand</a>.
+          </p>
+        </div>
+      </section>
+    </div>
+    <script type="module">
+      import { getStroke } from "https://unpkg.com/perfect-freehand@1.2.2/dist/esm/index.mjs";
+
+      const $ = (id) => document.getElementById(id);
+      const canvas = $("canvas");
+      const ctx = canvas.getContext("2d");
+      const W = canvas.width,
+        H = canvas.height;
+      let strokes = [];
+      let active = null;
+      let tool = "pen";
+      let history = [];
+      // Current erase gesture: { last: [x, y], pushed: bool }
+      let erasing = null;
+      let hover = null;
+
+      function settings() {
+        return {
+          size: Number($("size").value),
+          smoothing: Number($("smoothing").value) / 100,
+          thinning: Number($("thinning").value) / 100,
+          streamline: 0.5,
+          simulatePressure: true,
+          last: true,
+        };
+      }
+
+      const average = (a, b) => (a + b) / 2;
+
+      function getSvgPathFromStroke(points) {
+        const len = points.length;
+
+        if (!len) {
+          return "";
+        }
+
+        const first = points[0];
+        let result = `M${first[0].toFixed(3)},${first[1].toFixed(3)}Q`;
+
+        for (let i = 0, max = len - 1; i < max; i++) {
+          const a = points[i];
+          const b = points[i + 1];
+          result += `${a[0].toFixed(3)},${a[1].toFixed(3)} ${average(a[0], b[0]).toFixed(
+            3,
+          )},${average(a[1], b[1]).toFixed(3)} `;
+        }
+
+        result += "Z";
+
+        return result;
+      }
+
+      function outlinePath(points, opts = settings()) {
+        if (!points.length) return "";
+        return getSvgPathFromStroke(getStroke(points, opts));
+      }
+
+      function drawPath(d) {
+        if (d) ctx.fill(new Path2D(d));
+      }
+
+      function render() {
+        ctx.clearRect(0, 0, W, H);
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, W, H);
+        ctx.fillStyle = "#171717";
+        for (const points of strokes) drawPath(outlinePath(points));
+        if (active) drawPath(outlinePath(active));
+        if (hover && (tool === "erase" || erasing)) {
+          ctx.beginPath();
+          ctx.arc(hover[0], hover[1], eraserRadius(), 0, Math.PI * 2);
+          ctx.lineWidth = 1.5;
+          ctx.strokeStyle = "rgba(0, 0, 0, 0.45)";
+          ctx.stroke();
+        }
+        const count = strokes.reduce((n, stroke) => n + stroke.length, 0);
+        $("summary").textContent = strokes.length
+          ? `${strokes.length} stroke${strokes.length === 1 ? "" : "s"} · ${count} points`
+          : "No strokes yet.";
+        $("undo").disabled = history.length === 0;
+      }
+
+      function setTool(next) {
+        tool = next;
+        for (const [id, t] of [
+          ["toolPen", "pen"],
+          ["toolErase", "erase"],
+        ]) {
+          $(id).classList.toggle("primary", tool === t);
+          $(id).setAttribute("aria-pressed", String(tool === t));
+        }
+        canvas.classList.toggle("erasing", tool === "erase");
+        $("hint").textContent =
+          tool === "erase" ? "Drag over strokes to erase." : "Draw with a mouse, finger, or stylus.";
+        render();
+      }
+      $("toolPen").onclick = () => setTool("pen");
+      $("toolErase").onclick = () => setTool("erase");
+      document.addEventListener("keydown", (event) => {
+        if (event.metaKey || event.ctrlKey || event.altKey) return;
+        if (event.target.closest?.("input, textarea, select")) return;
+        const key = event.key.toLowerCase();
+        if (key === "p") setTool("pen");
+        else if (key === "e") setTool("erase");
+      });
+
+      const snapshot = () => history.push(strokes.map((s) => s.slice()));
+      const eraserRadius = () => Math.max(6, settings().size);
+
+      function pointSegDist(p, a, b) {
+        const dx = b[0] - a[0],
+          dy = b[1] - a[1];
+        const len2 = dx * dx + dy * dy;
+        let t = len2 ? ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2 : 0;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
+      }
+
+      function segSegDist(a, b, c, d) {
+        const cross = (o, p, q) => (p[0] - o[0]) * (q[1] - o[1]) - (p[1] - o[1]) * (q[0] - o[0]);
+        const d1 = cross(c, d, a),
+          d2 = cross(c, d, b),
+          d3 = cross(a, b, c),
+          d4 = cross(a, b, d);
+        if (d1 * d2 < 0 && d3 * d4 < 0) return 0;
+        return Math.min(
+          pointSegDist(a, c, d),
+          pointSegDist(b, c, d),
+          pointSegDist(c, a, b),
+          pointSegDist(d, a, b),
+        );
+      }
+
+      // Remove the parts of strokes within r of segment a–b, splitting strokes where cut.
+      function eraseSegment(a, b, r) {
+        let changed = false;
+        const next = strokes.flatMap((original) => {
+          // Subdivide long segments near the eraser so cuts stay local on sparse strokes.
+          const stroke = [original[0]];
+          for (let i = 1; i < original.length; i++) {
+            const p = original[i - 1],
+              q = original[i];
+            const n = Math.ceil(Math.hypot(q[0] - p[0], q[1] - p[1]) / (r / 2));
+            if (n > 1 && segSegDist(p, q, a, b) <= r) {
+              for (let k = 1; k < n; k++) stroke.push(p.map((v, j) => v + ((q[j] - v) * k) / n));
+            }
+            stroke.push(q);
+          }
+          const runs = [];
+          let run = [];
+          for (let i = 0; i < stroke.length; i++) {
+            const p = stroke[i];
+            if (pointSegDist(p, a, b) <= r) {
+              changed = true;
+              if (run.length) runs.push(run);
+              run = [];
+              continue;
+            }
+            if (run.length && segSegDist(run[run.length - 1], p, a, b) <= r) {
+              changed = true;
+              runs.push(run);
+              run = [];
+            }
+            run.push(p);
+          }
+          if (run.length) runs.push(run);
+          return runs.filter((run) => run.length >= 2);
+        });
+        if (!changed) return false;
+        if (!erasing.pushed) {
+          snapshot();
+          erasing.pushed = true;
+        }
+        strokes = next;
+        return true;
+      }
+
+      function updateSettings() {
+        $("sizeOut").textContent = $("size").value;
+        $("smoothOut").textContent = (Number($("smoothing").value) / 100).toFixed(2);
+        $("thinOut").textContent = (Number($("thinning").value) / 100).toFixed(2);
+        render();
+      }
+      for (const id of ["size", "smoothing", "thinning"]) {
+        $(id).addEventListener("input", updateSettings);
+      }
+
+      function pointFromEvent(event) {
+        const rect = canvas.getBoundingClientRect();
+        const pressure =
+          event.pointerType === "mouse" && event.pressure === 0 ? 0.5 : event.pressure || 0.5;
+        return [
+          ((event.clientX - rect.left) * W) / rect.width,
+          ((event.clientY - rect.top) * H) / rect.height,
+          pressure,
+        ];
+      }
+
+      const isStylusEraser = (event) => event.pointerType === "pen" && (event.buttons & 32) !== 0;
+
+      canvas.addEventListener("pointerdown", (event) => {
+        if (event.button !== undefined && event.button !== 0 && !isStylusEraser(event)) return;
+        event.preventDefault();
+        canvas.setPointerCapture(event.pointerId);
+        const p = pointFromEvent(event);
+        hover = p;
+        if (tool === "erase" || isStylusEraser(event)) {
+          erasing = { last: p, pushed: false };
+          eraseSegment(p, p, eraserRadius());
+        } else {
+          snapshot();
+          active = [p];
+        }
+        render();
+      });
+
+      canvas.addEventListener("pointermove", (event) => {
+        const events = event.getCoalescedEvents?.().length ? event.getCoalescedEvents() : [event];
+        hover = pointFromEvent(event);
+        if (erasing) {
+          event.preventDefault();
+          for (const e of events) {
+            const p = pointFromEvent(e);
+            eraseSegment(erasing.last, p, eraserRadius());
+            erasing.last = p;
+          }
+          render();
+          return;
+        }
+        if (!active) {
+          if (tool === "erase") render();
+          return;
+        }
+        event.preventDefault();
+        for (const e of events) {
+          const p = pointFromEvent(e);
+          const prev = active[active.length - 1];
+          if (Math.hypot(p[0] - prev[0], p[1] - prev[1]) > 0.25) active.push(p);
+        }
+        render();
+      });
+
+      canvas.addEventListener("pointerleave", () => {
+        hover = null;
+        if (tool === "erase") render();
+      });
+
+      function finishStroke() {
+        if (erasing) {
+          erasing = null;
+          render();
+        }
+        if (!active) return;
+        if (active.length === 1) active.push([...active[0]]);
+        strokes.push(active);
+        active = null;
+        render();
+      }
+      canvas.addEventListener("pointerup", finishStroke);
+      canvas.addEventListener("pointercancel", finishStroke);
+
+      $("undo").onclick = () => {
+        if (!history.length) return;
+        strokes = history.pop();
+        render();
+      };
+      $("clear").onclick = () => {
+        if (strokes.length) snapshot();
+        strokes = [];
+        active = null;
+        render();
+      };
+
+      function makeSvg() {
+        // One <path>, with separate subpaths. Intentionally no union/boolean operation.
+        const d = strokes
+          .map((points) => outlinePath(points))
+          .filter(Boolean)
+          .join(" ");
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="150mm" viewBox="0 0 ${W} ${H}"><path d="${d}" fill="#000000" fill-rule="nonzero"/></svg>`;
+      }
+
+      cuttle.ready((value) => {
+        if (value && Array.isArray(value.strokes)) {
+          strokes = value.strokes
+            .filter(Array.isArray)
+            .map((stroke) =>
+              stroke
+                .filter((p) => Array.isArray(p) && p.length >= 2)
+                .map((p) => [Number(p[0]), Number(p[1]), Number(p[2] ?? 0.5)]),
+            );
+          history = [];
+          if (Number.isFinite(value.size)) $("size").value = Math.max(1, Math.min(80, value.size));
+          if (Number.isFinite(value.smoothing))
+            $("smoothing").value = Math.round(Math.max(0, Math.min(1, value.smoothing)) * 100);
+          if (Number.isFinite(value.thinning))
+            $("thinning").value = Math.round(Math.max(0, Math.min(1, value.thinning)) * 100);
+        }
+        updateSettings();
+      });
+
+      $("save").onclick = () => {
+        const svg = makeSvg();
+        const value = {
+          strokes: strokes.map((stroke) => stroke.map((p) => [...p])),
+          size: settings().size,
+          smoothing: settings().smoothing,
+          thinning: settings().thinning,
+          svg,
+          _image: "data:image/svg+xml," + encodeURIComponent(svg),
+          _text: `${strokes.length} freehand stroke${strokes.length === 1 ? "" : "s"}`,
+        };
+        cuttle.setValueAndClose(value);
+      };
+
+      // Render immediately; don't wait for cuttle.ready().
+      render();
+    </script>
+  </body>
+</html>
