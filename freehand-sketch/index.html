@@ -215,7 +215,7 @@
       let strokes = [];
       let history = [];
       let active = null; // Stroke being drawn
-      let skippedPressure = 0; // Highest pressure among samples skipped since the last kept point
+      let pending = { sum: 0, count: 0 }; // Pressure of samples since the last kept point
       let erasing = null; // Current erase gesture: { last: [x, y], pushed: bool }
       let hover = null; // Pointer position, for the eraser ring
       let tool = "pen";
@@ -484,7 +484,21 @@
       function pointFromEvent(event, rect) {
         const cx = ((event.clientX - rect.left) * W) / rect.width;
         const cy = ((event.clientY - rect.top) * H) / rect.height;
-        return [W / 2 + (cx - W / 2) * zoom, H / 2 + (cy - H / 2) * zoom, event.pressure || 0.5];
+        // Stylus pressure sits around 0.1-0.4 in normal writing; a square root spreads that
+        // range around 0.5 so pressure visibly changes the width.
+        const pressure =
+          event.pointerType === "pen" && event.pressure > 0 ? Math.sqrt(event.pressure) : event.pressure || 0.5;
+        return [W / 2 + (cx - W / 2) * zoom, H / 2 + (cy - H / 2) * zoom, pressure];
+      }
+
+      // perfect-freehand uses real pressure unsmoothed, so sensor noise shows up as lumps.
+      // Give a kept point the mean pressure since the last one, eased toward the previous value.
+      function keepPoint(p) {
+        const prev = active[active.length - 1];
+        if (pending.count) p[2] = pending.sum / pending.count;
+        p[2] = prev[2] + (p[2] - prev[2]) * 0.5;
+        active.push(p);
+        pending = { sum: 0, count: 0 };
       }
 
       const isStylusEraser = (event) => event.pointerType === "pen" && (event.buttons & 32) !== 0;
@@ -501,7 +515,7 @@
         } else {
           snapshot();
           active = [p];
-          skippedPressure = 0;
+          pending = { sum: 0, count: 0 };
         }
         requestRender();
       });
@@ -530,14 +544,9 @@
         for (const e of events) {
           const p = pointFromEvent(e, rect);
           const prev = active[active.length - 1];
-          if (Math.hypot(p[0] - prev[0], p[1] - prev[1]) >= spacing) {
-            // Carry the peak pressure of skipped samples so quick pressure changes survive.
-            p[2] = Math.max(p[2], skippedPressure);
-            active.push(p);
-            skippedPressure = 0;
-          } else {
-            skippedPressure = Math.max(skippedPressure, p[2]);
-          }
+          pending.sum += p[2];
+          pending.count++;
+          if (Math.hypot(p[0] - prev[0], p[1] - prev[1]) >= spacing) keepPoint(p);
         }
         requestRender();
       });
@@ -563,11 +572,9 @@
         if (active) {
           const p = pointFromEvent(event, canvas.getBoundingClientRect());
           const prev = active[active.length - 1];
-          if (Math.hypot(p[0] - prev[0], p[1] - prev[1]) > 0.25) {
-            // pointerup usually reports zero pressure; reuse the last real value.
-            p[2] = Math.max(prev[2], skippedPressure);
-            active.push(p);
-          }
+          // pointerup usually reports zero pressure, so only the pending samples count.
+          p[2] = prev[2];
+          if (Math.hypot(p[0] - prev[0], p[1] - prev[1]) > 0.25) keepPoint(p);
         }
         finishStroke();
       });
