@@ -12,6 +12,7 @@ https://forresto.github.io/demo-cuttle-plugins/freehand-sketch/index.html
 
 - Large responsive canvas supporting mouse, touch, and stylus input.
 - Uses perfect-freehand to turn sampled points (including pressure) into filled stroke outlines.
+- Input points are thinned to a minimum spacing based on stroke size, so stylus and mouse produce similar point density.
 - Stroke size, smoothing, and pressure-thinning controls.
 - Eraser tool (button, `E` key, or stylus eraser) that cuts strokes where it passes.
 - Undo the last change or clear the canvas.

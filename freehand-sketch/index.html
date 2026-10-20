@@ -215,6 +215,7 @@
       let strokes = [];
       let history = [];
       let active = null; // Stroke being drawn
+      let skippedPressure = 0; // Highest pressure among samples skipped since the last kept point
       let erasing = null; // Current erase gesture: { last: [x, y], pushed: bool }
       let hover = null; // Pointer position, for the eraser ring
       let tool = "pen";
@@ -341,6 +342,9 @@
 
       const snapshot = () => history.push(strokes.slice());
       const eraserRadius = () => Math.max(6, opts.size);
+      // Stylus input arrives far denser than a mouse; tiny jittery steps make perfect-freehand's
+      // outline twist, so only keep points at least this far apart.
+      const minSpacing = () => Math.max(1, opts.size / 4);
 
       function pointSegDist(p, a, b) {
         const dx = b[0] - a[0],
@@ -497,6 +501,7 @@
         } else {
           snapshot();
           active = [p];
+          skippedPressure = 0;
         }
         requestRender();
       });
@@ -521,10 +526,18 @@
           return;
         }
         event.preventDefault();
+        const spacing = minSpacing();
         for (const e of events) {
           const p = pointFromEvent(e, rect);
           const prev = active[active.length - 1];
-          if (Math.hypot(p[0] - prev[0], p[1] - prev[1]) > 0.25) active.push(p);
+          if (Math.hypot(p[0] - prev[0], p[1] - prev[1]) >= spacing) {
+            // Carry the peak pressure of skipped samples so quick pressure changes survive.
+            p[2] = Math.max(p[2], skippedPressure);
+            active.push(p);
+            skippedPressure = 0;
+          } else {
+            skippedPressure = Math.max(skippedPressure, p[2]);
+          }
         }
         requestRender();
       });
@@ -545,7 +558,19 @@
         fitView();
         requestRender();
       }
-      canvas.addEventListener("pointerup", finishStroke);
+      canvas.addEventListener("pointerup", (event) => {
+        // Thinning can leave the last kept point short of where the pen lifted.
+        if (active) {
+          const p = pointFromEvent(event, canvas.getBoundingClientRect());
+          const prev = active[active.length - 1];
+          if (Math.hypot(p[0] - prev[0], p[1] - prev[1]) > 0.25) {
+            // pointerup usually reports zero pressure; reuse the last real value.
+            p[2] = Math.max(prev[2], skippedPressure);
+            active.push(p);
+          }
+        }
+        finishStroke();
+      });
       canvas.addEventListener("pointercancel", finishStroke);
 
       $("undo").onclick = () => {
