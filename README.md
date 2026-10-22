@@ -83,11 +83,11 @@ Cuttle imports geometry only:
 
 Cuttle reads the laser operation from color and stroke width.
 
-| Operation | SVG                                                                   |
-| --------- | --------------------------------------------------------------------- |
-| Cut       | red `#ff0000` hairline stroke, no fill                                |
-| Score     | blue `#0000ff` hairline stroke, no fill                               |
-| Engrave   | black `#000000` stroke at least 0.02 in wide, or black `#000000` fill |
+| Operation              | SVG                                                                   |
+| ---------------------- | --------------------------------------------------------------------- |
+| Cut                    | red `#ff0000` hairline stroke, no fill                                |
+| Score (vector-engrave) | blue `#0000ff` hairline stroke, no fill                               |
+| Engrave                | black `#000000` stroke at least 0.02 in wide, or black `#000000` fill |
 
 Stroke widths depend on the unit on the SVG's `width` and `height`:
 
