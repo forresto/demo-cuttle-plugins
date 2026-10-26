@@ -6,18 +6,15 @@ Small, self-contained examples of Parameter Plugins for [Cuttle](https://cuttle.
 
 The examples are both **working plugins** and **recipes for AI assistants** that are helping someone build a new Cuttle plugin.
 
-## Live examples
+Start a chat with this repository as the reference: [ChatGPT](https://chatgpt.com/?q=Help%20me%20design%20and%20build%20a%20Cuttle%20Parameter%20Plugin%20hosted%20html%20page.%20Here%20is%20a%20reference%3A%20https%3A%2F%2Fgithub.com%2Fforresto%2Fdemo-cuttle-plugins) · [Claude](https://claude.ai/new?q=Help%20me%20design%20and%20build%20a%20Cuttle%20Parameter%20Plugin%20hosted%20html%20page.%20Here%20is%20a%20reference%3A%20https%3A%2F%2Fgithub.com%2Fforresto%2Fdemo-cuttle-plugins) · [Gemini](https://share.gemini.google/AHC303T1Rqwk). Or give a coding agent `https://github.com/forresto/demo-cuttle-plugins`, then describe the Cuttle parameter and UI you want.
 
-| Example                                     | Description                                                                                   | Live                                                                                 |
-| ------------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| [Coordinates Picker](./coordinates-picker/) | Search OpenStreetMap, choose a place, then fine-tune its coordinates with a draggable marker. | [Open](https://forresto.github.io/demo-cuttle-plugins/coordinates-picker/index.html) |
-| [Freehand Sketch](./freehand-sketch)        | Doodle something with "perfect-freehand" strokes.                                             | [Open](https://forresto.github.io/demo-cuttle-plugins/freehand-sketch/index.html)    |
-| [Image to Palette](./image-to-palette/)     | Choose an image and extract a palette of colors for use as a Cuttle parameter.                | [Open](https://forresto.github.io/demo-cuttle-plugins/image-to-palette/index.html)   |
-| [Map Picker](./map-picker/)                 | Frame an OpenStreetMap area and save it as laser-ready SVG vectors.                           | [Open](https://forresto.github.io/demo-cuttle-plugins/map-picker/index.html)         |
+## Examples
 
-## Example plugin
-
-[example-plugin/](./example-plugin/) is a complete, self-contained example with the Cuttle SDK lifecycle and a visual reference for plugin UI: colors, layout, and native controls. It outputs a simple star as score lines, following the SVG conventions below. The design is a reference, not a template; copy the parts a plugin uses.
+- [example-plugin](./example-plugin/): the starting point. A complete Cuttle SDK lifecycle and a visual reference for plugin UI (colors, layout, native controls). Outputs a star as score lines. A reference, not a template; copy the parts a plugin uses.
+- [Coordinates Picker](./coordinates-picker/) ([live](https://forresto.github.io/demo-cuttle-plugins/coordinates-picker/index.html)): search OpenStreetMap, choose a place, fine-tune coordinates with a draggable marker.
+- [Freehand Sketch](./freehand-sketch/) ([live](https://forresto.github.io/demo-cuttle-plugins/freehand-sketch/index.html)): doodle with "perfect-freehand" strokes.
+- [Image to Palette](./image-to-palette/) ([live](https://forresto.github.io/demo-cuttle-plugins/image-to-palette/index.html)): extract a color palette from an image.
+- [Map Picker](./map-picker/) ([live](https://forresto.github.io/demo-cuttle-plugins/map-picker/index.html)): frame an OpenStreetMap area and save it as laser-ready SVG vectors.
 
 ## Plugin SDK
 
@@ -52,55 +49,35 @@ Inside an iframe that isn't Cuttle, such as an AI tool's preview pane, `cuttle.r
 
 Cuttle treats two fields of the value specially:
 
-- **`value._text`** — optional one-line summary used as the parameter's preview text in Cuttle.
-- **`value._image`** — optional image output, as a data URL (JPEG, PNG, or SVG). Cuttle shows it as the parameter's preview, and an SVG is importable as vector artwork. Put the SVG only here; don't also save it, or its markup, under another key.
+- **`value._text`**: optional one-line summary used as the parameter's preview text in Cuttle.
+- **`value._image`**: optional image output, as a data URL (JPEG, PNG, or SVG). Cuttle shows it as the parameter's preview, and an SVG is importable as vector artwork. This data URL is the only copy of the SVG in the value; don't also save the SVG, or its markup, under another key.
 
 #### Returning an SVG as `_image`
 
-Give the SVG `width` and `height` with a unit, `mm` or `in`, and use the same numbers in the `viewBox`:
+- Give the SVG `width` and `height` in `mm`, and use the same numbers in the `viewBox`. Every coordinate and stroke width is then in millimeters.
+- The `xmlns` attribute is required.
+- Encode the SVG string with `encodeURIComponent`:
 
-```svg
-<svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="150mm" viewBox="0 0 200 150">
-  …
-</svg>
-```
+  ```js
+  value._image = "data:image/svg+xml," + encodeURIComponent(svg);
+  ```
 
-Every coordinate and stroke width in the SVG is then in that unit; here, millimeters. Without a unit on `width` and `height`, the physical size is ambiguous.
-
-Encode the SVG string as a data URL with `encodeURIComponent`. The `xmlns` attribute is required. This data URL is the only copy of the SVG in the value.
-
-```js
-value._image = "data:image/svg+xml," + encodeURIComponent(svg);
-```
-
-Cuttle imports geometry only:
-
-- `path`, `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `g`, and `use` are imported, with their `transform`.
-- `<text>`, `<image>`, clip paths, and gradients are skipped. `opacity`, `display`, `visibility`, and dashes are ignored, so hidden elements still import.
+- Cuttle imports geometry only. `path`, `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `g`, and `use` are imported, with their `transform`. `<text>`, `<image>`, clip paths, and gradients are skipped. `opacity`, `display`, `visibility`, and dashes are ignored, so hidden elements still import.
 - Write `fill="none"` on every stroked shape. SVG's default fill is black, which imports as an engrave fill.
 
 #### Laser operations: colors and stroke widths
 
-Cuttle reads the laser operation from color and stroke width.
+Cuttle reads the laser operation from color and stroke width (in mm):
 
-| Operation              | SVG                                                                   |
-| ---------------------- | --------------------------------------------------------------------- |
-| Cut                    | red `#ff0000` hairline stroke, no fill                                |
-| Score (vector-engrave) | blue `#0000ff` hairline stroke, no fill                               |
-| Engrave                | black `#000000` stroke at least 0.02 in wide, or black `#000000` fill |
-
-Stroke widths depend on the unit on the SVG's `width` and `height`:
-
-| Unit | Hairline (cut and score) | Minimum engrave stroke |
-| ---- | ------------------------ | ---------------------- |
-| `in` | 0.01                     | 0.02                   |
-| `mm` | 0.254                    | 0.508                  |
-| `px` | 0.96                     | 1.92                   |
-| `pt` | 0.72                     | 1.44                   |
+| Operation              | SVG                                                           |
+| ---------------------- | ------------------------------------------------------------- |
+| Cut                    | red `#ff0000` hairline stroke (`0.254`), no fill              |
+| Score (vector-engrave) | blue `#0000ff` hairline stroke (`0.254`), no fill             |
+| Engrave                | black `#000000` stroke at least `0.508` wide, or black `#000000` fill |
 
 Any stroke thinner than the engrave minimum imports as a hairline.
 
-An SVG in millimeters with each operation:
+An SVG with each operation:
 
 ```svg
 <svg xmlns="http://www.w3.org/2000/svg" width="200mm" height="150mm" viewBox="0 0 200 150">
@@ -111,9 +88,9 @@ An SVG in millimeters with each operation:
 </svg>
 ```
 
-## Reading plugin values
+## Using the value in Cuttle (for humans)
 
-The plugin writes a JavaScript object to the Cuttle parameter. Its fields can be used in a normal component's expressions, such as `parameterValue.latitude`, or in a code component. This code component example renders the SVG from `_image`:
+Once a plugin has saved its value, the parameter holds that JavaScript object. Its fields can be used in a normal component's expressions, such as `parameterValue.latitude`, or in a code component. This code component renders the SVG from `_image`:
 
 ```js
 if (!parameterValue) return;
@@ -128,43 +105,16 @@ return svgRenderer.render();
 
 `parameterValue` stands for the name of the component's parameter. `getSVGFromURL` returns `undefined` while the SVG is loading, so the code returns early until it is ready.
 
-## Libraries
+## Building a plugin
 
-Examples load third-party libraries from version-pinned CDNs, such as:
-
-```html
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-```
-
-## Hosting
-
-Cuttle Parameter Plugins are ordinary web pages loaded from an HTTPS URL. For example,
-
-`https://forresto.github.io/demo-cuttle-plugins/image-to-palette/index.html`
-
-Options for hosting:
-
-- [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site) (free)
-- [ChatGPT Sites](https://help.openai.com/en/articles/20001339-creating-and-using-chatgpt-sites) (with Work or Codex paid plans)
-
-## Using this repository with AI
-
-- [Open with ChatGPT](https://chatgpt.com/?q=Help%20me%20design%20and%20build%20a%20Cuttle%20Parameter%20Plugin%20hosted%20html%20page.%20Here%20is%20a%20reference%3A%20https%3A%2F%2Fgithub.com%2Fforresto%2Fdemo-cuttle-plugins)
-- [Open with Claude](https://claude.ai/new?q=Help%20me%20design%20and%20build%20a%20Cuttle%20Parameter%20Plugin%20hosted%20html%20page.%20Here%20is%20a%20reference%3A%20https%3A%2F%2Fgithub.com%2Fforresto%2Fdemo-cuttle-plugins)
-- [Open with Gemini](https://share.gemini.google/AHC303T1Rqwk)
-
-Give a coding agent or AI assistant this repository URL:
-
-`https://github.com/forresto/demo-cuttle-plugins`
-
-Then describe the Cuttle parameter and UI you want.
+A plugin is an ordinary web page loaded from an HTTPS URL, for example `https://forresto.github.io/demo-cuttle-plugins/image-to-palette/index.html`. [GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site) (free) and [ChatGPT Sites](https://help.openai.com/en/articles/20001339-creating-and-using-chatgpt-sites) (Work or Codex paid plans) both work.
 
 The agent should follow this workflow:
 
 1. Inspect the closest example.
 2. Preserve the Cuttle Parameter Plugin SDK lifecycle.
 3. Adapt the value schema to the requested parameter.
-4. Keep the plugin self-contained in one HTML file.
+4. Keep the plugin self-contained in one HTML file. Load third-party libraries from version-pinned CDNs, such as `https://unpkg.com/leaflet@1.9.4/dist/leaflet.js`.
 5. Add a README.md beside the plugin's index.html: live URL, the value written to Cuttle, how the UI behaves, and external dependencies.
 6. Publish the plugin where it can be accessed with a stable HTTPS URL.
 7. Return the live URL. If publishing to a stable HTTPS URL isn't possible, return the HTML code and a hint about hosting.
