@@ -40,7 +40,7 @@ The SVG has one `<path>` element. Its `d` attribute concatenates the outline dat
 
 Coordinates are stored in the page's logical 1000 × 750 coordinate system (200 × 150mm), independent of the canvas's displayed CSS size, and may fall outside it.
 
-Cuttle centres the image, so the SVG is framed by a zoom factor `z` around the page centre rather than a tight bounding box: `width="200z mm"`, `height="150z mm"`, and a 4:3 `viewBox` of `1000z × 750z` centred on (500, 375). `z` is the smallest factor that contains every stroke outline, so a small sketch gives a smaller image and off-page ink gives a larger one (an empty sketch uses `z = 1`).
+The SVG converts them to mm (0.2 mm per page unit), so its `viewBox` uses the same numbers as its `width` and `height`. Cuttle centres the image, so the SVG is framed by a zoom factor `z` around the page centre rather than a tight bounding box: `width="200z mm"`, `height="150z mm"`, and a `viewBox` of `200z × 150z` centred on (100, 75). `z` is the smallest factor that contains every stroke outline, so a small sketch gives a smaller image and off-page ink gives a larger one (an empty sketch uses `z = 1`).
 
 When reopened, the plugin restores the point arrays and drawing settings, then regenerates the outlines.
 

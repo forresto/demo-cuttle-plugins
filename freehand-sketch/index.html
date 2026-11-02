@@ -205,6 +205,8 @@
       const ctx = canvas.getContext("2d");
       const W = canvas.width,
         H = canvas.height;
+      // The page is 200 × 150 mm.
+      const MM_PER_UNIT = 200 / W;
       const HINTS = {
         pen: "Draw with a mouse, finger, or stylus.",
         erase: "Drag over strokes to erase.",
@@ -238,9 +240,11 @@
       const average = (a, b) => (a + b) / 2;
 
       // From the perfect-freehand README.
-      function getSvgPathFromStroke(points) {
+      // `scale` converts page units, e.g. to mm for the saved SVG.
+      function getSvgPathFromStroke(points, scale = 1) {
         const len = points.length;
         if (len < 4) return "";
+        if (scale !== 1) points = points.map(([x, y]) => [x * scale, y * scale]);
 
         let a = points[0];
         let b = points[1];
@@ -273,7 +277,7 @@
           box[2] = Math.max(box[2], x);
           box[3] = Math.max(box[3], y);
         }
-        return { d, path: new Path2D(d), box };
+        return { points, d, path: new Path2D(d), box };
       }
 
       function cachedOutline(stroke) {
@@ -487,7 +491,9 @@
         // Stylus pressure sits around 0.1-0.4 in normal writing; a square root spreads that
         // range around 0.5 so pressure visibly changes the width.
         const pressure =
-          event.pointerType === "pen" && event.pressure > 0 ? Math.sqrt(event.pressure) : event.pressure || 0.5;
+          event.pointerType === "pen" && event.pressure > 0
+            ? Math.sqrt(event.pressure)
+            : event.pressure || 0.5;
         return [W / 2 + (cx - W / 2) * zoom, H / 2 + (cy - H / 2) * zoom, pressure];
       }
 
@@ -598,17 +604,19 @@
 
       function makeSvg() {
         // One <path>, with separate subpaths. Intentionally no union/boolean operation.
+        // Coordinates are converted from page units to mm, so the viewBox matches width/height.
         const d = strokes
-          .map((stroke) => cachedOutline(stroke).d)
+          .map((stroke) => getSvgPathFromStroke(cachedOutline(stroke).points, MM_PER_UNIT))
           .filter(Boolean)
           .join(" ");
         // Cuttle centres the image, so frame it by a zoom factor around the page centre
         // (keeping 4:3 and 200x150mm per page) rather than a tight bounding box.
         const z = inkZoom(0) || 1;
-        const viewBox = [W / 2 - (W / 2) * z, H / 2 - (H / 2) * z, W * z, H * z]
-          .map(round)
-          .join(" ");
-        return `<svg xmlns="http://www.w3.org/2000/svg" width="${round(200 * z)}mm" height="${round(150 * z)}mm" viewBox="${viewBox}"><path d="${d}" fill="#000000" fill-rule="nonzero"/></svg>`;
+        const w = round(W * z * MM_PER_UNIT);
+        const h = round(H * z * MM_PER_UNIT);
+        const x = round(((W * (1 - z)) / 2) * MM_PER_UNIT);
+        const y = round(((H * (1 - z)) / 2) * MM_PER_UNIT);
+        return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}mm" height="${h}mm" viewBox="${x} ${y} ${w} ${h}"><path d="${d}" fill="#000000" fill-rule="nonzero"/></svg>`;
       }
 
       // Keep finite points; a stroke needs at least two, so single points become dots.
