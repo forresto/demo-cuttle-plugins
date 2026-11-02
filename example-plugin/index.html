@@ -452,22 +452,29 @@ Plugin docs: https://github.com/forresto/demo-cuttle-plugins
   </div>
 </div>
 <script>
-  // The design is a reference, not a required layout. Keep this lifecycle when
-  // adapting the page into a Cuttle parameter plugin.
-  // Cuttle's hairline stroke width (0.01 in) in each unit; a blue hairline is
-  // a score line.
-  const HAIRLINE = { mm: 0.254, in: 0.01, px: 0.96 };
-  const UNITS = Object.keys(HAIRLINE);
+  /**
+   * The design is a reference, not a required layout. Keep this lifecycle when
+   * adapting the page into a Cuttle parameter plugin.
+   */
+
+  // Millimeters per unit. The SVG is always written in mm; the size field's
+  // unit only sets how the size is entered.
+  const MM_PER = { mm: 1, in: 25.4, px: 25.4 / 96 };
+  const UNITS = Object.keys(MM_PER);
+  // Cuttle's hairline stroke width (0.01 in) in mm; a blue hairline is a score
+  // line.
+  const HAIRLINE = 0.254;
   const field = (name) => document.querySelector(`[name="${name}"]`);
   const fmt = (v) => String(Math.round(v * 1000) / 1000);
 
-  // A star as score lines: n points on a circle, each joined to the point
-  // nearly opposite, for the sharpest star. The viewBox matches width/height,
-  // so coordinates are in the chosen unit and HAIRLINE[unit] is the score
-  // line's stroke width.
+  // A star as score lines: n points on a circle of diameter `size`, each
+  // joined to the point nearly opposite, for the sharpest star. width/height
+  // are in mm with the same numbers in the viewBox, so every coordinate and
+  // the stroke width are in mm.
   function starSvg(points, size, unit) {
     const n = Math.min(24, Math.max(5, Math.round(points) || 5));
-    const r = size / 2;
+    const mm = size * MM_PER[unit];
+    const r = mm / 2;
     const pt = (i) => {
       const a = (i / n) * 2 * Math.PI - Math.PI / 2;
       return `${fmt(r + r * Math.cos(a))} ${fmt(r + r * Math.sin(a))}`;
@@ -475,10 +482,10 @@ Plugin docs: https://github.com/forresto/demo-cuttle-plugins
     const step = Math.floor((n - 1) / 2);
     let d = "";
     for (let i = 0; i < n; i++) d += `M${pt(i)}L${pt(i + step)}`;
-    const s = fmt(size);
+    const s = fmt(mm);
     return (
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${s}${unit}" height="${s}${unit}" viewBox="0 0 ${s} ${s}">` +
-      `<path fill="none" stroke="#0000ff" stroke-width="${HAIRLINE[unit]}" d="${d}"/></svg>`
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${s}mm" height="${s}mm" viewBox="0 0 ${s} ${s}">` +
+      `<path fill="none" stroke="#0000ff" stroke-width="${HAIRLINE}" d="${d}"/></svg>`
     );
   }
 
