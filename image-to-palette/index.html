@@ -4,143 +4,22 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Image to Palette</title>
+
+    <!-- Parameter plugin docs: https://cuttle.xyz/learn/parameter-plugins -->
     <script src="https://cuttle.xyz/parameter-plugin/v1.js"></script>
+    <link rel="stylesheet" href="https://cuttle.xyz/parameter-plugin/v1.css" />
+
     <style>
-      /* Cuttle plugin style (2026-09-25), only the parts this plugin uses. */
-      :root {
-        --bg: #fafafa;
-        --panel: #f3f3f3;
-        --field: #e6e6e6;
-        --field-h: #dedede;
-        --ink: rgba(0, 0, 0, 0.85);
-        --ink2: rgba(0, 0, 0, 0.6);
-        --line: rgba(0, 0, 0, 0.1);
-        --blue: hsl(200, 100%, 50%);
-        --blue-h: hsl(200, 100%, 58%);
-        --error: hsl(0, 70%, 92%);
-        --error-ink: hsl(12, 68%, 40%);
-        --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-      }
-      * {
-        box-sizing: border-box;
-      }
-      body {
-        margin: 0;
-        padding: 12px;
-        background: var(--bg);
-        color: var(--ink);
-        font:
-          16px/1.4 system-ui,
-          -apple-system,
-          sans-serif;
-      }
-
-      .layout {
-        display: grid;
-        gap: 12px;
-        align-items: start;
-      }
-      @media (min-width: 640px) {
-        .layout {
-          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        }
-      }
-      @media (min-width: 1000px) {
-        .layout {
-          grid-template-columns: minmax(0, 1fr) 420px;
-        }
-      }
-
-      .preview {
-        position: relative;
-        display: grid;
-        place-items: center;
-        aspect-ratio: 4/3;
-        min-height: 200px;
-        max-height: calc(100vh - 24px);
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow:
-          0 0 0 1px var(--line),
-          0 4px 16px rgba(0, 0, 0, 0.08);
-        background: #fff;
-      }
-      /* After the base .preview rule, or position: relative wins. */
-      @media (min-width: 640px) {
-        .preview {
-          position: sticky;
-          top: 12px;
-        }
-      }
-      /* Plugin-specific: the source image fills the preview card. */
+      /* The source image fills the preview card. */
       .preview img {
         width: 100%;
         height: 100%;
         object-fit: contain;
       }
-      .empty {
-        color: var(--ink2);
-        text-align: center;
-        padding: 24px;
-      }
-      .preview[aria-busy="true"] {
-        opacity: 0.6;
-      }
-
-      .controls {
-        display: grid;
-        gap: 12px;
-        min-width: 0;
-      }
-      .panel {
-        display: grid;
-        gap: 8px;
-        background: var(--panel);
-        border-radius: 10px;
-        padding: 12px;
-      }
-      .row {
-        display: grid;
-        grid-template-columns: minmax(72px, 2fr) minmax(0, 3fr);
-        gap: 8px;
-        align-items: center;
-      }
-      h3 {
-        margin: 4px 0 0;
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: var(--ink2);
-      }
-      small {
-        font-size: 14px;
-        color: var(--ink2);
-      }
       small a {
         color: inherit;
       }
 
-      input,
-      button {
-        font: inherit;
-        color: inherit;
-        border: 0;
-        border-radius: 6px;
-        background: var(--field);
-        padding: 4px 8px;
-        width: 100%;
-        min-width: 0;
-        min-height: 36px;
-      }
-      input:hover,
-      button:not(:disabled):hover {
-        background: var(--field-h);
-      }
-      input[type="number"] {
-        font-family: var(--mono);
-        text-align: center;
-      }
       input[type="color"] {
         flex: none;
         width: 24px;
@@ -162,29 +41,6 @@
       input[type="color"]::-moz-color-swatch {
         border: 0;
         border-radius: inherit;
-      }
-      :focus-visible {
-        outline: 2px solid var(--blue);
-        outline-offset: 1px;
-      }
-      button {
-        cursor: pointer;
-      }
-      button:disabled {
-        opacity: 0.5;
-        cursor: default;
-      }
-
-      .primary {
-        background: var(--blue);
-        color: #fff;
-        font-weight: 600;
-        padding: 10px 16px;
-        border-radius: 8px;
-        box-shadow: 0 2px 6px rgba(0, 120, 200, 0.3);
-      }
-      .primary:hover:not(:disabled) {
-        background: var(--blue-h);
       }
 
       .drop input {
@@ -221,19 +77,6 @@
         height: auto;
         aspect-ratio: 1;
         border-radius: 6px;
-      }
-
-      .note {
-        margin: 0;
-        color: var(--ink2);
-        font-size: 14px;
-        overflow-wrap: anywhere;
-      }
-      .note.error {
-        padding: 8px 10px;
-        border-radius: 6px;
-        background: var(--error);
-        color: var(--error-ink);
       }
     </style>
   </head>
@@ -573,7 +416,7 @@
           '">' +
           rects +
           "</svg>";
-        return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+        return cuttle.svgDataUrl(svg);
       }
 
       // Palette swatches are editable color inputs (repeated name="colors").
